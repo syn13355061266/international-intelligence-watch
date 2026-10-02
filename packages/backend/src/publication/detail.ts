@@ -11,6 +11,7 @@ import { hasItemPage } from "./rules.ts";
 import { SITE } from "@aihot/industry/site";
 
 interface DetailRow extends ItemRow {
+  excerpt: string | null;
   body_html: string | null;
   body_text: string | null;
   body_status: string;
@@ -38,7 +39,7 @@ function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
 
 async function loadRow(id: string): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
+    SELECT ${ITEM_COLUMNS}, a.excerpt, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
     ${ITEM_FROM}
     WHERE p.article_id = ${id}`;
   return row ?? null;
@@ -101,6 +102,24 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       zhKind: isZh ? "original" : zh ? "translation" : null,
       complete: isZh ? true : row.tr_complete ?? false,
     };
+  } else if (row.body_mode === "full" && (row.body_text || row.excerpt || row.tr_html)) {
+    // Some feeds provide readable text without sanitized HTML. Keep that text visible below
+    // the AI guide instead of leaving the article page empty, while clearly marking it as an excerpt.
+    const text = String(row.body_text ?? row.excerpt ?? "").trim();
+    const isZh = row.language === "zh" || /[一-鿿]/.test(text.slice(0, 400));
+    const original = text ? textToHtml(text) : null;
+    const translated = row.tr_html ? proxyBodyImages(row.tr_html) : null;
+    const selected = isZh ? original : translated ?? original;
+    if (selected) {
+      const primary = withOutline(selected);
+      outline = primary.outline;
+      body = {
+        zh: isZh ? primary.html : translated ? primary.html : null,
+        original: isZh ? null : original,
+        zhKind: isZh ? "original" : translated ? "translation" : null,
+        complete: row.body_status === "ok" || (!isZh && !!(translated && row.tr_complete)),
+      };
+    }
   }
 
   let group: ItemDetail["group"] = null;

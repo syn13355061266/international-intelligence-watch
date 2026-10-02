@@ -5,7 +5,7 @@ import { SITE } from "@aihot/industry/site";
 export function Wordmark({ size = 22, className = "" }: { size?: number; className?: string }) {
   return (
     <span className={`inline-flex items-center leading-none ${className}`} aria-label={SITE.name} role="img">
-      <img src="/logo.svg" alt={SITE.name} width={size} height={size} className="rounded-[22%] object-contain" />
+      <img src="/logo.png" alt={SITE.name} width={size} height={size} className="rounded-[22%] object-contain" />
     </span>
   );
 }

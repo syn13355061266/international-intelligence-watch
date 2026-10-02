@@ -3,7 +3,7 @@ import { data as withHeaders, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
 import type { TimelineResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
-import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
+import { ApiError, apiGet, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
 import { Wordmark } from "../components/Logo";
 import { Timeline } from "../features/feed/Timeline";
@@ -22,7 +22,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   const category = categoryParam && isCategoryKey(categoryParam) ? categoryParam : null;
   const tag = url.searchParams.get("tag")?.trim() || null;
   const upstream = new Headers();
-  const data = await loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { responseHeaders: upstream, signal: request.signal });
+  let data: TimelineResponse;
+  try {
+    data = await apiGet<TimelineResponse>(`/api/site/timeline${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { responseHeaders: upstream, signal: request.signal });
+  } catch (error) {
+    // Keep the shell available while collection is intentionally paused or the local preview
+    // database is offline. This lets operators inspect the layout and admin entry without
+    // implying that an empty feed is a successful collection run.
+    if (!(error instanceof ApiError) || error.status !== 503) throw error;
+    data = {
+      filters: { channel, category, tag, topic: null },
+      cards: [], nextCursor: null, refreshAt: null, hot: null, dayCounts: {}, generatedAt: new Date().toISOString(),
+    };
+  }
   return withHeaders({ data, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
 }
 

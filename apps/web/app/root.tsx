@@ -76,7 +76,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
         跳到正文
       </a>
       <Link
-        to="/admin-login?return=%2Fadmin"
+        to="/admin/login?return=%2Fadmin"
         className="fixed right-4 top-3 z-40 rounded-full border border-line bg-surface/95 px-3 py-1.5 text-[12px] font-medium text-ink-3 shadow-[var(--shadow-soft)] backdrop-blur transition-colors hover:border-accent hover:text-accent lg:right-6"
       >
         管理后台
