@@ -1,0 +1,335 @@
+{
+  "topics": [
+    {
+      "slug": "country-us",
+      "name": "美国",
+      "group": "company",
+      "tags": [
+        "country:US"
+      ],
+      "definition": "美国（United States of America / US）的外交、安全、经济与科技最新公开动态。",
+      "related": [
+        "region-019"
+      ]
+    },
+    {
+      "slug": "region-five-eyes",
+      "name": "五眼联盟",
+      "group": "company",
+      "tags": [
+        "region:FVE"
+      ],
+      "definition": "美国、英国、加拿大、澳大利亚、新西兰及五眼合作的最新公开动态。",
+      "related": []
+    },
+    {
+      "slug": "country-ru",
+      "name": "俄罗斯",
+      "group": "company",
+      "tags": [
+        "country:RU"
+      ],
+      "definition": "俄罗斯（Russian Federation / RU）的外交、安全、经济与科技最新公开动态。",
+      "related": [
+        "region-150"
+      ]
+    },
+    {
+      "slug": "region-019",
+      "name": "美洲",
+      "group": "company",
+      "tags": [
+        "region:019"
+      ],
+      "definition": "按联合国M49地域分组，汇集美洲涉及的最新公开情报。",
+      "related": []
+    },
+    {
+      "slug": "country-tw",
+      "name": "台湾",
+      "group": "company",
+      "tags": [
+        "country:TW"
+      ],
+      "definition": "台湾地区相关的地缘政治、科技、经贸与安全最新公开动态。",
+      "related": []
+    },
+    {
+      "slug": "region-002",
+      "name": "非洲",
+      "group": "company",
+      "tags": [
+        "region:002"
+      ],
+      "definition": "按联合国M49地域分组，汇集非洲涉及的最新公开情报。",
+      "related": []
+    },
+    {
+      "slug": "region-150",
+      "name": "欧洲",
+      "group": "company",
+      "tags": [
+        "region:150"
+      ],
+      "definition": "按联合国M49地域分组，汇集欧洲涉及的最新公开情报。",
+      "related": []
+    },
+    {
+      "slug": "region-034",
+      "name": "南亚",
+      "group": "company",
+      "tags": [
+        "region:034"
+      ],
+      "definition": "按联合国M49地域分组，汇集南亚涉及的最新公开情报。",
+      "related": []
+    },
+    {
+      "slug": "region-middle-east",
+      "name": "中东",
+      "group": "company",
+      "tags": [
+        "region:MDE"
+      ],
+      "definition": "汇集西亚及伊朗、埃及的最新公开动态；为本站编辑地域分组，可与其他区域重叠。",
+      "related": []
+    },
+    {
+      "slug": "rare-earths",
+      "name": "稀土",
+      "group": "field",
+      "tags": [
+        "稀土"
+      ],
+      "definition": "关键矿产、稀土开采与分离冶炼、磁材、出口管制、战略储备、跨国投资与资源竞争",
+      "related": [
+        "oil"
+      ]
+    },
+    {
+      "slug": "oil",
+      "name": "石油",
+      "group": "field",
+      "tags": [
+        "石油"
+      ],
+      "definition": "原油、成品油与相关天然气供应、OPEC+、油气制裁、管道、炼厂、海峡与能源安全",
+      "related": [
+        "rare-earths"
+      ]
+    },
+    {
+      "slug": "semiconductors",
+      "name": "半导体与芯片",
+      "group": "field",
+      "tags": [
+        "半导体"
+      ],
+      "definition": "持续追踪半导体与芯片对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "ai-security",
+      "name": "人工智能",
+      "group": "field",
+      "tags": [
+        "人工智能"
+      ],
+      "definition": "持续追踪人工智能安全对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "nuclear-security",
+      "name": "核技术",
+      "group": "field",
+      "tags": [
+        "核安全",
+        "核能"
+      ],
+      "definition": "追踪核能、核燃料、核安全、核不扩散与国际核合作。",
+      "related": []
+    },
+    {
+      "slug": "quantum",
+      "name": "量子技术",
+      "group": "field",
+      "tags": [
+        "量子技术"
+      ],
+      "definition": "持续追踪量子技术对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "satellites",
+      "name": "航天卫星",
+      "group": "field",
+      "tags": [
+        "卫星导航",
+        "太空安全"
+      ],
+      "definition": "持续追踪卫星与导航对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "cyber-attacks",
+      "name": "网络安全",
+      "group": "field",
+      "tags": [
+        "网络攻击"
+      ],
+      "definition": "持续追踪网络攻击与漏洞对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "critical-infrastructure",
+      "name": "关键基础设施",
+      "group": "field",
+      "tags": [
+        "关键基础设施"
+      ],
+      "definition": "持续追踪关键基础设施对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "biotechnology",
+      "name": "生物安全",
+      "group": "field",
+      "tags": [
+        "生物安全"
+      ],
+      "definition": "持续追踪生物技术与生物安全对国家安全、国际合作与竞争格局的影响。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-embassies",
+      "name": "使领馆动态",
+      "group": "genre",
+      "tags": [
+        "使领馆"
+      ],
+      "definition": "追踪使领馆动态的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-consular",
+      "name": "领事保护与撤侨",
+      "group": "genre",
+      "tags": [
+        "领事保护"
+      ],
+      "definition": "追踪领事保护与撤侨的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-meetings",
+      "name": "国际会议",
+      "group": "genre",
+      "tags": [
+        "国际会议",
+        "会议举办"
+      ],
+      "definition": "汇集国际会议消息与举办日程，包括筹备、举办时间地点、参会安排及会议成果。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-forums",
+      "name": "国际论坛",
+      "group": "genre",
+      "tags": [
+        "国际论坛"
+      ],
+      "definition": "追踪国际论坛的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-summits",
+      "name": "峰会与部长级会议",
+      "group": "genre",
+      "tags": [
+        "国际峰会"
+      ],
+      "definition": "追踪峰会与部长级会议的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-participation",
+      "name": "参会与外交出访",
+      "group": "genre",
+      "tags": [
+        "参会动态"
+      ],
+      "definition": "追踪参会与外交出访的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-joint-statements",
+      "name": "联合声明与协议",
+      "group": "genre",
+      "tags": [
+        "联合声明"
+      ],
+      "definition": "追踪联合声明与协议的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-un",
+      "name": "联合国与安理会",
+      "group": "genre",
+      "tags": [
+        "联合国"
+      ],
+      "definition": "追踪联合国与安理会的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-nato",
+      "name": "北约",
+      "group": "genre",
+      "tags": [
+        "北约"
+      ],
+      "definition": "追踪北约的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-asean",
+      "name": "东盟",
+      "group": "genre",
+      "tags": [
+        "东盟"
+      ],
+      "definition": "追踪东盟的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-au",
+      "name": "非洲联盟",
+      "group": "genre",
+      "tags": [
+        "非洲联盟"
+      ],
+      "definition": "追踪非洲联盟的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-sco",
+      "name": "上海合作组织",
+      "group": "genre",
+      "tags": [
+        "上合组织"
+      ],
+      "definition": "追踪上海合作组织的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    },
+    {
+      "slug": "diplomacy-brics",
+      "name": "金砖国家",
+      "group": "genre",
+      "tags": [
+        "金砖国家"
+      ],
+      "definition": "追踪金砖国家的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
+      "related": []
+    }
+  ]
+}

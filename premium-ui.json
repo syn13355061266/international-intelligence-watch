@@ -1,0 +1,8 @@
+{
+  "profile": "product-admin",
+  "locale": "zh-CN",
+  "canonicalMap": "UX-CONTRACT.md",
+  "sourceRoots": ["apps/web/app"],
+  "ownership": { "Select/Listbox": "native", "Date": "native" },
+  "requiredCapabilities": ["Select/Listbox", "Form", "Toast", "CRUD", "Scrollbar"]
+}
