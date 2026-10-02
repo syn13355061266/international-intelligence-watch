@@ -75,6 +75,12 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2">
         跳到正文
       </a>
+      <Link
+        to="/admin-login?return=%2Fadmin"
+        className="fixed right-4 top-3 z-40 rounded-full border border-line bg-surface/95 px-3 py-1.5 text-[12px] font-medium text-ink-3 shadow-[var(--shadow-soft)] backdrop-blur transition-colors hover:border-accent hover:text-accent lg:right-6"
+      >
+        管理后台
+      </Link>
       <Sidebar changelogVersion={changelogVersion} />
       {/* Mobile shell (≤ 960px): one centred column, the tab bar below. Desktop: the page fills the main area
           up to the list width (--page-max-wide), centred beyond it. */}

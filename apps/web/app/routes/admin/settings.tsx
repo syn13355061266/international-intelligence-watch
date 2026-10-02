@@ -68,7 +68,7 @@ function BudgetRow({ b }: { b: AdminSettings["budgets"][number] }) {
         <ReasonDialog
           open={open}
           title={`调整 ${b.service} 的请求上限`}
-          description="上限是付费请求的熔断：超过后请求暂停并按窗口重试。填 0 表示立即停用这个服务。"
+          description="这是模型和第三方采集请求的安全阀：超过后请求暂停并按窗口重试。Codex 订阅只计入本站的防失控次数，不等于 API 账单；X、公众号、Jina 只有配置各自凭据后才会产生第三方费用。填 0 表示立即停用这个服务。"
           confirmLabel="保存"
           busy={pending === "budget"}
           onClose={() => setOpen(false)}
@@ -122,7 +122,7 @@ export default function SettingsAdmin({ loaderData: s }: Route.ComponentProps) {
           />
         </Card>
       </div>
-      <Card className="mt-5" title="付费请求上限" right={<span>已用：近 1 小时 / 近 24 小时</span>} pad={false}>
+      <Card className="mt-5" title="请求预算与熔断" right={<span>已用：近 1 小时 / 近 24 小时</span>} pad={false}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-[13px]">
             <thead>

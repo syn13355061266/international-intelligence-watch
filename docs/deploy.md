@@ -1,14 +1,14 @@
 # 部署
 
-> 国际情报观察定制版：先读 `intelligence-expansion.md`。本版本默认 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`；仅启动容器不会出现新闻。请先配置模型与预算、逐批核验信源，再在正式部署配置中开启两个开关，并确保worker常驻。请部署当前修改版代码，重新克隆上游只会得到原示例站。
+> 国际情报观察定制版：先读 `intelligence-expansion.md`。动态站点必须运行 PostgreSQL、API、worker 和 web；GitHub Pages 只发布不含密钥的静态快照，不能替代这四个服务。正式部署启用 `COLLECT_ENABLED=true`、`MODEL_CALLS_ENABLED=true` 并确保 worker 常驻。仓库为 `syn13355061266/international-intelligence-watch`。
 
 ## 用 Docker（推荐）
 
 需要一台装了 Docker（带 Compose）的机器。云服务器建议至少 2 核、4 GB 内存，构建镜像时要用到。
 
 ```bash
-git clone https://github.com/KKKKhazix/AIHOT.git myhot
-cd myhot
+git clone https://github.com/syn13355061266/international-intelligence-watch.git international-intelligence-watch
+cd international-intelligence-watch
 node scripts/init-env.ts --llm-key <你的模型 API Key>
 docker compose up -d --build
 ```
@@ -18,6 +18,10 @@ docker compose up -d --build
 启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。第一次启动会导入示范信源，一两分钟后开始出现内容；第一次导入的一百多条资料大约半小时处理完（每条都要预筛、评分，入选的还要写标题摘要）。
 
 `docker compose` 会起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）。
+
+### GitHub Pages 与动态站点
+
+仓库的 `pages.yml` 会把 `pages/` 发布到 GitHub Pages。它展示最近一次提交中的公开快照，不保存数据库、管理员密码、OAuth token 或来源密钥。实时情报仍应访问部署在服务器上的动态地址；在仓库变量 `PAGES_SOURCE_URL` 中填写该公开地址后，下一次 Actions 发布会从 `/api/v1/items` 更新快照。没有这个变量时，Actions 保留仓库中最后一份快照。历史内容保存在服务器 PostgreSQL 的 `articles`、`analyses`、`publications` 表以及 `data` 卷中；不要使用 `docker compose down -v`，并按下文每日备份数据库。
 
 ### 在中国大陆的服务器上
 
@@ -82,8 +86,8 @@ docker compose logs -f --tail 100 api worker web
 
 ## 花多少钱
 
-- **模型**：每条新资料至少预筛一次；可能入选的再评分两次，入选的还要写标题摘要、打标签、归组，另外还有日报和事件综述。我们用示范信源在本地试跑，第一次导入的 152 条资料一共用了大约 930 次模型调用。之后每天用多少，取决于你的信源每天更新多少条。后台“模型与评测”页能看到每一步的调用次数和输入输出 token 数。
-- **付费采集**（X、公众号、Jina）：按请求计费，默认不启用，填了 key 才会用。
+- **模型**：每条新资料至少预筛一次；可能入选的再评分两次，入选的还要写标题摘要、打标签、归组，另外还有日报和事件综述。当前订阅安全阀是每分钟 30 次、每小时 180 次、每天 600 次；它是本站防止任务失控的请求上限，不是 OpenAI 账单。订阅额度和 credits 以 ChatGPT/Codex 使用面板为准。
+- **付费采集**（X、公众号、Jina）：按请求计费，当前没有凭据，因此默认跳过；免费 RSS 和 JSON 来源不需要这些 key。
 - 所有付费服务都有每分钟、每小时、每天的调用上限（后台“设置 → 预算”），超过就暂停，不会一夜之间刷爆账单。填 0 表示立即停用这个服务。
 
 ## 不用 Docker
