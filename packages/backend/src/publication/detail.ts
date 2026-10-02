@@ -2,6 +2,7 @@ import { selectedCondition, listedCondition } from "./scope.ts";
 // Item detail and Markdown export, both behind the same visibility and licence rules.
 import type { ItemDetail, SiteItemDetail, OutlineEntry, StoryRef } from "@aihot/contracts/site";
 import TurndownService from "turndown";
+import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
@@ -102,11 +103,12 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       zhKind: isZh ? "original" : zh ? "translation" : null,
       complete: isZh ? true : row.tr_complete ?? false,
     };
-  } else if (row.body_mode === "full" && (row.body_text || row.excerpt || row.tr_html)) {
-    // Some feeds provide readable text without sanitized HTML. Keep that text visible below
-    // the AI guide instead of leaving the article page empty, while clearly marking it as an excerpt.
-    const text = String(row.body_text ?? row.excerpt ?? "").trim();
-    const isZh = row.language === "zh" || /[一-鿿]/.test(text.slice(0, 400));
+  } else if (config.publicSourceExcerpts && row.channel !== "x" && row.body_mode !== "full" && (row.excerpt || row.tr_html)) {
+    // An explicit local opt-in can show a short RSS description below the AI guide. It is never the
+    // fetched article body, never applies to X, and remains marked incomplete so the source link is
+    // still the canonical place for the full article.
+    const text = String(row.excerpt ?? "").trim();
+    const isZh = row.language === "zh" || /[一-鿿]/.test((text || row.body_html || "").slice(0, 400));
     const original = text ? textToHtml(text) : null;
     const translated = row.tr_html ? proxyBodyImages(row.tr_html) : null;
     const selected = isZh ? original : translated ?? original;
@@ -117,7 +119,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
         zh: isZh ? primary.html : translated ? primary.html : null,
         original: isZh ? null : original,
         zhKind: isZh ? "original" : translated ? "translation" : null,
-        complete: row.body_status === "ok" || (!isZh && !!(translated && row.tr_complete)),
+        complete: false,
       };
     }
   }

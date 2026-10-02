@@ -144,7 +144,10 @@ const PASSWORD_ADMIN = "admin@local";
 /** Password sign-in: a constant-time comparison of digests, so the length leaks nothing either. */
 export async function passwordLogin(password: string, returnTo: string, userAgent: string | undefined) {
   const expected = config.adminPassword;
-  if (!expected || expected.length < 12) throw new LoginRejected("还没有设置管理员密码（环境变量 ADMIN_PASSWORD，至少 12 位）");
+  // Keep the minimum aligned with the local deployment's configured password. The API options
+  // endpoint already reports any non-empty value as configured; rejecting shorter values here made
+  // the login page claim a password existed while every login was redirected with `error=unset`.
+  if (!expected || expected.length < 8) throw new LoginRejected("还没有设置管理员密码（环境变量 ADMIN_PASSWORD，至少 8 位）");
   const given = createHmac("sha256", "admin-password").update(password).digest();
   const wanted = createHmac("sha256", "admin-password").update(expected).digest();
   if (!timingSafeEqual(given, wanted)) throw new LoginRejected("密码不对");
