@@ -315,11 +315,11 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
 const sharded = () => sql`kind = 'x_search' AND config->>'query' ~* ${SHARDABLE_SQL} AND coalesce(config->>'searchType', 'Latest') = 'Latest' AND cursor->>'lastTweetId' IS NOT NULL`;
 
 /** Every minute: a shard is read when any of its accounts is due, all of them at once. */
-async function scheduleXShards(): Promise<number> {
+async function scheduleXShards(force = false): Promise<number> {
   const rows = await sql<Array<Pick<SourceRow, "id" | "kind" | "config" | "cursor" | "participation_mode"> & { due: boolean }>>`
     SELECT id, kind, config, cursor, participation_mode, (next_fetch_at IS NULL OR next_fetch_at <= now()) AS due
     FROM sources WHERE enabled AND ${sharded()}`;
-  const due = new Set(rows.filter((r) => r.due).map((r) => r.id));
+  const due = new Set(rows.filter((r) => force || r.due).map((r) => r.id));
   let enqueued = 0;
   for (const shard of planXShards(rows)) {
     if (!shard.sourceIds.some((id) => due.has(id))) continue;
@@ -331,7 +331,7 @@ async function scheduleXShards(): Promise<number> {
 }
 
 /** Every minute: enqueue due sources (enabled, not WeChat/external), oldest due first; X accounts by shard. */
-export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDULE_BATCH || 40)): Promise<{ enqueued: number; shards: number }> {
+export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDULE_BATCH || 40), opts: { force?: boolean } = {}): Promise<{ enqueued: number; shards: number }> {
   const kinds: string[] = (process.env.COLLECT_KINDS || "rss,web_list,json_list,x_search").split(",");
   const allowlist = (process.env.COLLECT_SOURCE_IDS || "").split(",").map((id) => id.trim()).filter(Boolean);
   // Listings fetched through Jina Reader are paid; development can leave them out.
@@ -340,14 +340,14 @@ export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDU
     SELECT id FROM sources
     WHERE enabled AND kind IN ${sql(kinds)}
       AND (${allowlist.length ? sql`id IN ${sql(allowlist)}` : sql`true`})
-      AND (next_fetch_at IS NULL OR next_fetch_at <= now()) AND NOT (${sharded()})
+      AND (${opts.force ? sql`true` : sql`next_fetch_at IS NULL OR next_fetch_at <= now()`}) AND NOT (${sharded()})
       ${skipJina ? sql`AND config::text NOT LIKE '%r.jina.ai%'` : sql``}
     ORDER BY next_fetch_at NULLS FIRST LIMIT ${limit}`;
   for (const r of rows) {
     await enqueue(QUEUES.fetchSource, { sourceId: r.id }, { singletonKey: r.id });
     await sql`UPDATE sources SET next_fetch_at = now() + interval '10 minutes' WHERE id = ${r.id}`;
   }
-  const shards = kinds.includes("x_search") ? await scheduleXShards() : 0;
+  const shards = kinds.includes("x_search") ? await scheduleXShards(!!opts.force) : 0;
   return { enqueued: rows.length, shards };
 }
 

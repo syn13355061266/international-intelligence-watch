@@ -3,9 +3,12 @@
 import { SITE } from "@aihot/industry/site";
 
 export function Wordmark({ size = 22, className = "" }: { size?: number; className?: string }) {
+  // The supplied brand artwork contains both the globe mark and the Chinese wordmark. Keep it
+  // wide enough to remain legible in the 180px sidebar and the admin sign-in header.
+  const width = Math.round(size * 5.5);
   return (
     <span className={`inline-flex items-center leading-none ${className}`} aria-label={SITE.name} role="img">
-      <img src="/logo.png" alt={SITE.name} width={size} height={size} className="rounded-[22%] object-contain" />
+      <img src="/logo.png" alt={SITE.name} width={width} height={size} className="max-w-full object-fill" />
     </span>
   );
 }
