@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
-import { translatePending } from "@aihot/backend/editorial/translate";
+import { translateArticle, translatePending } from "@aihot/backend/editorial/translate";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
@@ -65,6 +65,22 @@ after(async () => {
   await provider.close();
   await stopBoss();
   await closeDb();
+});
+
+test("published scope translates older non-selected plain text while preserving the licence gate", async () => {
+  const { articleId: id } = await upsertMaterial({sourceId: SOURCE, url: `${URL_}-old-plain`, title:`Old ten ${T}`, language:'en', bodyText:`The price is ten dollars ${T}.`, bodyStatus:'ok', via:'fetch', publishedAt:new Date('2025-01-01'), discoveredAt:new Date('2025-01-01')});
+  await sql`INSERT INTO analyses(article_id,input_revision,origin,relevance,category,title_zh,summary_zh,score,selected)
+    VALUES (${id},1,'rule','pass','energy-minerals','历史正文','摘要',60,false)`;
+  await publishArticle(id);
+  const saved=process.env.TRANSLATE_SCOPE;
+  process.env.TRANSLATE_SCOPE='published';
+  try {
+    const r=await translatePending({limit:500,budgetMs:60_000});
+    assert.ok(r.done.some(x=>x.articleId===id && x.status==='translated'));
+    assert.ok((await detail(id)).body.zh?.includes('十美元'));
+    await sql`UPDATE publications SET body_mode='summary' WHERE article_id=${id}`;
+    assert.equal((await translateArticle(id)).status,'skipped');
+  } finally { if(saved===undefined) delete process.env.TRANSLATE_SCOPE; else process.env.TRANSLATE_SCOPE=saved; }
 });
 
 test("a text corrected while its translation was running is translated again, and the old translation is not shown", async () => {

@@ -3,7 +3,7 @@ import { assertProductionSecrets } from "@aihot/backend/config";
 import { FEATURES } from "@aihot/industry/features";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { registerContentJobs, registerExtractionJobs } from "@aihot/backend/jobs/content";
+import { registerContentJobs, registerExtractionJobs, refreshContentPriorities } from "@aihot/backend/jobs/content";
 import { registerModelConnectionJobs } from "@aihot/backend/jobs/model-connections";
 import { registerSourceJobs } from "@aihot/backend/jobs/sources";
 import { registerEventJobs } from "@aihot/backend/jobs/events";
@@ -20,6 +20,7 @@ assertProductionSecrets([["auth", "IMG_PROXY_SIGN_SECRET"]]);
 
 await ensureContentTargets();
 const boss = await getBoss();
+await refreshContentPriorities();
 await registerContentJobs(boss);
 await registerModelConnectionJobs(boss);
 if (process.env.COLLECT_ENABLED !== "false") await registerSourceJobs(boss);

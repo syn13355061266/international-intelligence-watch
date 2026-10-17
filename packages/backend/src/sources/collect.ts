@@ -3,7 +3,7 @@
 import { sql } from "../db.ts";
 import { identityKeyFor, upsertMaterial } from "../content/materials.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
-import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
+import { enqueue, ensureQueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { queueProcessing } from "../jobs/content.ts";
 import { BudgetExceededError } from "../providers/receipts.ts";
 import { fetchRss } from "./rss.ts";
@@ -331,24 +331,47 @@ async function scheduleXShards(force = false): Promise<number> {
 }
 
 /** Every minute: enqueue due sources (enabled, not WeChat/external), oldest due first; X accounts by shard. */
-export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDULE_BATCH || 40), opts: { force?: boolean } = {}): Promise<{ enqueued: number; shards: number }> {
+export function collectionDayStart(now = new Date()): Date {
+  // Shanghai 05:00 = previous UTC day 21:00. Before 05:00 finish the preceding day's sweep.
+  const start = new Date(now);
+  start.setUTCHours(21, 0, 0, 0);
+  if (start > now) start.setUTCDate(start.getUTCDate() - 1);
+  return start;
+}
+
+export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDULE_BATCH || 40), opts: { force?: boolean; daily?: boolean; now?: Date } = {}): Promise<{ enqueued: number; shards: number }> {
   const kinds: string[] = (process.env.COLLECT_KINDS || "rss,web_list,json_list,x_search").split(",");
   const allowlist = (process.env.COLLECT_SOURCE_IDS || "").split(",").map((id) => id.trim()).filter(Boolean);
   // Listings fetched through Jina Reader are paid; development can leave them out.
   const skipJina = process.env.COLLECT_SKIP_JINA === "true";
+  await ensureQueue(QUEUES.fetchSource);
+  // Bound rolling and daily queues alike: each minute fills only the available slots.
+  if (!opts.force) {
+    const [pending] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM pgboss.job
+      WHERE name = ${QUEUES.fetchSource} AND state IN ('created', 'retry', 'active') AND start_after <= now()`;
+    limit = Math.max(0, Math.min(limit, limit * 2 - (pending?.n ?? 0)));
+  }
+  const dayStart = collectionDayStart(opts.now);
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM sources
     WHERE enabled AND kind IN ${sql(kinds)}
       AND (${allowlist.length ? sql`id IN ${sql(allowlist)}` : sql`true`})
       AND (${opts.force ? sql`true` : sql`next_fetch_at IS NULL OR next_fetch_at <= now()`}) AND NOT (${sharded()})
+      AND (${opts.daily && !opts.force ? sql`last_ok_at IS NULL OR last_ok_at < ${dayStart}` : sql`true`})
+      AND NOT EXISTS (SELECT 1 FROM pgboss.job j WHERE j.name = ${QUEUES.fetchSource}
+        AND j.data->>'sourceId' = sources.id AND j.state IN ('created', 'retry', 'active'))
       ${skipJina ? sql`AND config::text NOT LIKE '%r.jina.ai%'` : sql``}
-    ORDER BY next_fetch_at NULLS FIRST LIMIT ${limit}`;
+    ORDER BY last_fetch_at NULLS FIRST, next_fetch_at NULLS FIRST, id LIMIT ${limit}`;
+  let enqueued = 0;
   for (const r of rows) {
-    await enqueue(QUEUES.fetchSource, { sourceId: r.id }, { singletonKey: r.id });
-    await sql`UPDATE sources SET next_fetch_at = now() + interval '10 minutes' WHERE id = ${r.id}`;
+    const job = await enqueue(QUEUES.fetchSource, { sourceId: r.id }, { singletonKey: r.id });
+    if (job) {
+      await sql`UPDATE sources SET next_fetch_at = now() + interval '10 minutes' WHERE id = ${r.id}`;
+      enqueued += 1;
+    }
   }
   const shards = kinds.includes("x_search") ? await scheduleXShards(!!opts.force) : 0;
-  return { enqueued: rows.length, shards };
+  return { enqueued, shards };
 }
 
 /**

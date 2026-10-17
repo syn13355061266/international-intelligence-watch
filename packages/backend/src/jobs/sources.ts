@@ -4,9 +4,12 @@ import { collectSource, collectXShard } from "../sources/collect.ts";
 import { checkMpAccount } from "../sources/mp.ts";
 import { QUEUES, work } from "./queue.ts";
 import { registerExtractionJobs } from "./content.ts";
+import { setTimeout } from "node:timers/promises";
 
 export async function registerSourceJobs(boss: PgBoss) {
-  await work(boss, QUEUES.fetchSource, { localConcurrency: Number(process.env.FETCH_CONCURRENCY || 8), pollingIntervalSeconds: 2 }, async (data) => {
+  await work(boss, QUEUES.fetchSource, { localConcurrency: Number(process.env.FETCH_CONCURRENCY || 2), pollingIntervalSeconds: 2 }, async (data) => {
+    const delay = Math.max(0, Math.min(60_000, Number(process.env.FETCH_SPACING_MS || 0)));
+    if (delay) await setTimeout(delay);
     return collectSource(data.sourceId, { force: data.force });
   });
   // One search per shard of X accounts; the SocialData per-minute budget is shared with the reset monitor.

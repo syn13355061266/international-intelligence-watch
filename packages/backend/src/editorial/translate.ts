@@ -155,12 +155,12 @@ export function unshield(translated: string, s: Shielded): string | null {
 }
 
 export async function translateArticle(articleId: string): Promise<TranslateResult> {
-  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
-    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
+  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; eligible: boolean; body_mode: string; visibility: string }[]>`
+    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.eligible, p.body_mode, p.visibility
     FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
   if (!row) return { articleId, status: "skipped", reason: "not published" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
-  if (!row.selected || row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a selected full-text item" });
+  if ((!row.selected && !(process.env.TRANSLATE_SCOPE === "published" && row.eligible)) || row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not an eligible full-text item" });
 
   if (row.channel === "x") {
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
@@ -173,8 +173,8 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     return result({ status: "translated", segments: 1 });
   }
 
-  if (!row.body_html || isChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
-  const $ = cheerio.load(row.body_html, null, false);
+  if ((!row.body_html && !row.body_text) || isChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
+  const $ = cheerio.load(row.body_html || textToHtml(row.body_text!), null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
   // Beyond the cap, only the leading blocks are translated; the rest keep the original text.
@@ -287,14 +287,14 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   const rows = await sql<{ article_id: string }[]>`
     SELECT p.article_id FROM publications p JOIN articles a ON a.id = p.article_id
     LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
-    WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
-      AND (p.discovered_at > now() - interval '3 days'
+    WHERE ((${process.env.TRANSLATE_SCOPE === "published"} AND p.eligible) OR p.selected) AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
+      AND (${process.env.TRANSLATE_SCOPE === "published"} OR p.discovered_at > now() - interval '3 days'
            OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
                       AND r.created_at > now() - interval '3 days'))
       AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND tr.revision < a.revision))
       AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
                       AND (t.outcome IN ('skipped', 'translated', 'partial') OR t.attempts >= 3))
-    ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`;
+    ORDER BY p.selected DESC, p.discovered_at DESC LIMIT ${opts.limit ?? Number(process.env.TRANSLATE_BATCH || 30)}`;
   const done: TranslateResult[] = [];
   for (const r of rows) {
     if (Date.now() - started > (opts.budgetMs ?? 4 * 60_000) || shutdownSignal.signal.aborted) break;

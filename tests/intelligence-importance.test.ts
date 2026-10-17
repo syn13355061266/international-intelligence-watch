@@ -2,6 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { computeImportance, type ImportanceEvidence } from "@aihot/industry/intelligence";
 import { parseTelegram } from "../packages/backend/src/sources/telegram.ts";
+
+test("Telegram album footers outside the message retain only the matching post date", () => {
+  const html=`<div class="tgme_widget_message_wrap"><div class="tgme_widget_message" data-post="channel/10"><div class="tgme_widget_message_text">公开消息正文</div></div><a class="tgme_widget_message_date" href="https://t.me/channel/11"><time datetime="2026-10-09T10:00:00Z"></time></a><a class="tgme_widget_message_date" href="https://t.me/channel/10"><time datetime="2026-10-10T10:00:00Z"></time></a></div>`;
+  const rows=parseTelegram(html,"https://t.me/s/channel");
+  assert.equal(rows.length,1);
+  assert.equal(rows[0]!.publishedAt!.toISOString(),"2026-10-10T10:00:00.000Z");
+  assert.equal(parseTelegram(html.replace('href="https://t.me/channel/10"','href="https://t.me/channel/99"'),"https://t.me/s/channel").length,0);
+});
 import { unsupportedConfig } from "../packages/backend/src/sources/config-keys.ts";
 import { readFileSync } from "node:fs";
 const at = new Date("2026-10-01T12:00:00Z");

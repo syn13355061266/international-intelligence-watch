@@ -120,7 +120,7 @@ export default function ItemPage() {
   };
 
   const bodyHtml = lang === "zh" ? (item.body?.zh ?? item.body?.original) : (item.body?.original ?? item.body?.zh);
-  const bodyLabel = !item.body ? null : lang === "zh" && item.body.zhKind === "translation" ? "正文 · AI 翻译" : lang === "original" && hasTranslation ? "正文 · 原文" : item.body.complete ? "正文" : "正文摘录";
+  const bodyLabel = !item.body ? null : item.bodyNotice === "source-link" ? "来源摘录" : lang === "zh" && item.body.zhKind === "translation" ? "正文 · AI 翻译" : lang === "original" ? "正文 · 原文" : "正文";
   const isX = item.channel === "x" && !!item.x;
   const publishedIso = item.publishedAt ?? item.discoveredAt;
   const summaryOnly = item.readingMode === "summary-only";
@@ -325,6 +325,16 @@ export default function ItemPage() {
 
           {summaryOnly && <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">应来源方要求，这里只提供摘要与原文入口。完整内容请阅读原文。</p>}
 
+          {!summaryOnly && !bodyHtml && (
+            <section className="mt-9 border-t border-line pt-5 xl:mt-10" aria-label="正文">
+              <h2 className="mb-3 text-[14px] font-semibold text-ink-3">正文</h2>
+              <p className="text-[14px] leading-relaxed text-ink-3">
+                {item.bodyNotice === "source-link" ? "该来源尚未开放站内全文转载，请前往来源网站阅读全文。" : "暂未取得可展示的完整正文，请先阅读来源网站；正文补齐后会在此显示。"}
+              </p>
+              <a href={item.links.original} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex text-[14px] text-accent underline underline-offset-4">打开原文 ↗</a>
+            </section>
+          )}
+
           {item.body && bodyHtml && (
             <section className="mt-9 border-t border-line pt-4 xl:mt-10">
               <div className="mb-6 flex items-center justify-between gap-3">
@@ -346,8 +356,9 @@ export default function ItemPage() {
                 <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">译文尚不完整，完整内容请切换到原文。</p>
               )}
               {!item.body.complete && !hasTranslation && (
-                <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">当前显示来源正文摘录；完整内容请打开原文。</p>
+                <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">当前为来源提供的简短摘录，完整正文请打开原文。</p>
               )}
+              {item.bodyNotice === "translation-pending" && <p className="mb-5 text-[13px] text-ink-3">中文译文待生成，以下为已获取的原文。</p>}
               <div className="prose" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
             </section>
           )}
@@ -362,6 +373,13 @@ export default function ItemPage() {
             </a>
             <span> · {hostOf(item.links.original)}</span>
           </p>
+
+          {item.body && item.bodyNotice !== "source-link" && item.links.original.startsWith("https://www.gov.uk/") && (
+            <p className="mt-2 text-[12px] text-ink-4">英国政府公开信息，依 <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Open Government Licence v3.0</a> 使用。中文译文由 AI 生成，非官方译文；以来源原文为准。</p>
+          )}
+          {item.body && item.bodyNotice !== "source-link" && item.links.original.startsWith("https://www.consilium.europa.eu/") && (
+            <p className="mt-2 text-[12px] text-ink-4">© European Union, 2026. 来源：欧盟理事会。中文译文由 AI 生成，非官方译文；以来源原文为准。</p>
+          )}
 
           {item.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5 lg:hidden">

@@ -13,6 +13,7 @@ import { publishArticle } from "../publication/publish.ts";
 import { BudgetExceededError, ProviderRejectedError, ReceiptBusyError, ReceiptUnknownError } from "../providers/receipts.ts";
 import { ModelOutputError } from "../providers/llm.ts";
 import { enqueue, QUEUES, shutdownSignal, work } from "./queue.ts";
+import { contentPriority, type PriorityInput } from "./content-priority.ts";
 
 /** Minutes to wait after the n-th failed attempt; one more failure after the last ends in "failed". */
 const RETRY_MINUTES = [5, 10, 20, 40, 60, 120, 240, 360];
@@ -30,6 +31,7 @@ interface Route {
   /** Not an editorial source: no analysis; the post goes straight to event grouping as discussion evidence. */
   signal: boolean;
   historical: boolean;
+  priority: number;
 }
 
 /**
@@ -39,10 +41,10 @@ interface Route {
  * it is news, as history adds no heat).
  */
 async function route(articleId: string, db: Db): Promise<Route | null> {
-  const [row] = await db<{ body_status: string; participation_mode: string; kind: string; config: Record<string, unknown>; url: string; bare: boolean; backfill: boolean; published_at: Date | null; discovered_at: Date }[]>`
+  const [row] = await db<(PriorityInput & { body_status: string; participation_mode: string; kind: string; config: Record<string, unknown>; url: string; bare: boolean })[]>`
     SELECT a.body_status, s.participation_mode, s.kind, s.config, a.url, (coalesce(a.body_text, '') = '' AND a.x_post IS NULL) AS bare,
-           a.backfill, a.published_at, a.discovered_at
-    FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
+           a.backfill, a.published_at, a.discovered_at, s.tier, p.score, a.title, left(a.excerpt, 1000) AS excerpt
+    FROM articles a JOIN sources s ON s.id = a.source_id LEFT JOIN publications p ON p.article_id = a.id WHERE a.id = ${articleId}`;
   if (!row) return null;
   const historical = isHistorical(row);
   const signal = row.participation_mode !== "editorial";
@@ -50,7 +52,7 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
   const wantsBody = row.config.fetchPublicContent === true || !!row.config.detail || row.kind === "web_list";
   const needsPage = !signal && (wantsBody || (row.bare && pageFetchable(row.url, row.kind)));
   const needsXArticle = row.kind === "x_search" && (!signal || (row.participation_mode === "hot_signal" && !historical));
-  return { step: pending && (needsPage || needsXArticle) ? "extract" : "analyze", signal, historical };
+  return { step: pending && (needsPage || needsXArticle) ? "extract" : "analyze", signal, historical, priority: contentPriority(row) };
 }
 
 /**
@@ -76,13 +78,30 @@ export async function queueProcessing(articleId: string, opts: { step?: Step; at
   if (!queued) return null;
   // Extraction and the sweep only carry articleId; retain the current evaluation's paid identity.
   const attemptTag = queued.processing_attempt_tag ?? undefined;
-  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.historical ? PRIORITY.history : PRIORITY.live }, opts.db);
+  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.priority }, opts.db);
   if (r.signal && !attemptTag) {
     return enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: r.historical ? PRIORITY.history : PRIORITY.liveSignal }, opts.db);
   }
   const tagged = !!attemptTag;
   return enqueue(QUEUES.analyze, tagged ? { articleId, attemptTag } : { articleId },
-    { singletonKey: tagged ? `manual:analyze:${articleId}:${attemptTag}` : articleId, priority: r.historical ? PRIORITY.history : PRIORITY.live }, opts.db);
+    { singletonKey: tagged ? `manual:analyze:${articleId}:${attemptTag}` : articleId, priority: r.priority }, opts.db);
+}
+
+/** Reorder waiting work after restart and as news ages; never touch a running job or its receipts. */
+export async function refreshContentPriorities(): Promise<number> {
+  const rows = await sql<(PriorityInput & { id: string; priority: number })[]>`
+    SELECT j.id, j.priority, a.backfill, a.published_at, a.discovered_at, s.tier, p.score, a.title, left(a.excerpt, 1000) AS excerpt
+    FROM pgboss.job j JOIN articles a ON a.id = j.data->>'articleId'
+    JOIN sources s ON s.id = a.source_id LEFT JOIN publications p ON p.article_id = a.id
+    WHERE j.name IN (${QUEUES.analyze}, ${QUEUES.extractBody}) AND j.state IN ('created', 'retry')`;
+  const now = Date.now();
+  const changed = rows.map(row => ({ id: row.id, priority: contentPriority(row, now), previous: row.priority }))
+    .filter(row => row.priority !== row.previous);
+  if (!changed.length) return 0;
+  const result = await sql`UPDATE pgboss.job j SET priority = x.priority
+    FROM jsonb_to_recordset(${sql.json(changed)}) AS x(id uuid, priority integer, previous integer)
+    WHERE j.id = x.id AND j.priority = x.previous AND j.state IN ('created', 'retry')`;
+  return result.count;
 }
 
 /** 信源转为编辑来源时补齐未分析的资料；其余新任务由安全网继续接手。 */
@@ -210,7 +229,7 @@ export async function registerContentJobs(boss: PgBoss, concurrency = Number(pro
  * on the excerpt it has ("unconfirmed" body, never a wrong one).
  */
 export async function registerExtractionJobs(boss: PgBoss) {
-  await work(boss, QUEUES.extractBody, { localConcurrency: 4, pollingIntervalSeconds: 2 }, async ({ articleId }) => {
+  await work(boss, QUEUES.extractBody, { localConcurrency: Number(process.env.EXTRACT_CONCURRENCY || 2), pollingIntervalSeconds: 2 }, async ({ articleId }) => {
     const [input] = await sql<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId}`;
     if (!input) return { state: "missing" };
     try {
@@ -242,6 +261,7 @@ export async function registerExtractionJobs(boss: PgBoss) {
  * a lost job, a retry that came due). Articles already queued or running are left alone.
  */
 export async function sweepUnprocessed(): Promise<{ enqueued: number }> {
+  await refreshContentPriorities();
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM articles
     WHERE processing_state = 'new' AND created_at < now() - interval '3 minutes'

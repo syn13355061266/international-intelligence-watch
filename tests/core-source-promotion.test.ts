@@ -106,7 +106,7 @@ test("promoting a settled auto-created source resumes normal editorial extractio
   const jobs = await processingJobs(id);
   assert.equal(jobs[0]?.name, QUEUES.extractBody, "promotion must resume normal editorial processing after isolated ingestion");
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0]!.priority, 0);
+  assert.ok(jobs[0]!.priority > 0);
   assert.equal(jobs[0]!.data.attemptTag, undefined);
   assert.equal(provider.hits(), 0, "promotion and republish must not call models");
 
@@ -147,7 +147,8 @@ test("hot-signal promotion analyzes a ready body without fetching and retains re
   for (const articleId of [id, blocked]) {
     const jobs = await processingJobs(articleId);
     assert.equal(jobs.length, 1);
-    assert.deepEqual([jobs[0]!.name, jobs[0]!.priority, jobs[0]!.data.attemptTag], [QUEUES.analyze, 0, undefined]);
+    assert.deepEqual([jobs[0]!.name, jobs[0]!.data.attemptTag], [QUEUES.analyze, undefined]);
+    assert.ok(jobs[0]!.priority > 0);
   }
   assert.deepEqual(await processArticle(id), { state: "pass" });
   assert.deepEqual(await processArticle(blocked), { state: "block" });
@@ -176,7 +177,8 @@ test("promotion preserves history, material identity and manual editorial/groupi
   const beforeOverrides = await overrides();
   await edit(sourceId, { participation_mode: "editorial" });
   assert.deepEqual([...(await timeline())], [...beforeTimeline]);
-  assert.deepEqual([(await processingJobs(old))[0]?.priority, (await processingJobs(live))[0]?.priority], [-2, 0]);
+  assert.equal((await processingJobs(old))[0]?.priority, -2);
+  assert.ok((await processingJobs(live))[0]!.priority > 0);
   assert.deepEqual(await processArticle(old), { state: "pass" });
   await republishSource(sourceId);
   assert.deepEqual([...(await timeline())], [...beforeTimeline]);

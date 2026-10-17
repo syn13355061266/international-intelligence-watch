@@ -91,9 +91,9 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       zhKind: summary.x?.translation ? "translation" : null,
       complete: true,
     };
-  } else if (row.body_mode === "full" && row.body_html) {
+  } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
     const isZh = row.language === "zh" || (/[一-鿿]/.test(row.body_text?.slice(0, 400) ?? "") && row.language !== "en");
-    const original = proxyBodyImages(row.body_html);
+    const original = proxyBodyImages(row.body_html || textToHtml(row.body_text!));
     const zh = isZh ? original : row.tr_html ? proxyBodyImages(row.tr_html) : null;
     const primary = withOutline(zh ?? original);
     outline = primary.outline;
@@ -101,24 +101,23 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       zh: zh ? primary.html : null,
       original: zh && !isZh ? withOutline(original).html : isZh ? null : primary.html,
       zhKind: isZh ? "original" : zh ? "translation" : null,
-      complete: isZh ? true : row.tr_complete ?? false,
+      complete: !zh || isZh ? true : row.tr_complete ?? false,
     };
-  } else if (config.publicSourceExcerpts && row.channel !== "x" && row.body_mode !== "full" && (row.excerpt || row.tr_html)) {
+  } else if (config.publicSourceExcerpts && row.channel !== "x" && row.body_mode !== "full" && row.excerpt) {
     // An explicit local opt-in can show a short RSS description below the AI guide. It is never the
     // fetched article body, never applies to X, and remains marked incomplete so the source link is
     // still the canonical place for the full article.
     const text = String(row.excerpt ?? "").trim();
-    const isZh = row.language === "zh" || /[一-鿿]/.test((text || row.body_html || "").slice(0, 400));
+    const isZh = row.language === "zh" || /[一-鿿]/.test(text.slice(0, 400));
     const original = text ? textToHtml(text) : null;
-    const translated = row.tr_html ? proxyBodyImages(row.tr_html) : null;
-    const selected = isZh ? original : translated ?? original;
+    const selected = original;
     if (selected) {
       const primary = withOutline(selected);
       outline = primary.outline;
       body = {
-        zh: isZh ? primary.html : translated ? primary.html : null,
+        zh: isZh ? primary.html : null,
         original: isZh ? null : original,
-        zhKind: isZh ? "original" : translated ? "translation" : null,
+        zhKind: isZh ? "original" : null,
         complete: false,
       };
     }
@@ -153,6 +152,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
     author: row.author,
     language: row.language,
     body,
+    bodyNotice: row.body_mode !== "full" ? "source-link" : !body ? "unavailable" : !body.zh && row.language !== "zh" ? "translation-pending" : null,
     outline,
     relatedStories: related,
     indexable: row.indexable,
@@ -193,10 +193,10 @@ export async function exportMarkdown(id: string): Promise<{ filename: string; bo
     const q = row.x_post.quoted as { handle?: string; text?: string; url?: string } | null | undefined;
     if (q?.text) lines.push(`## 引用 @${q.handle ?? ""}`, "", ...String(q.text).split("\n").map((l) => `> ${l}`), "", ...(q.url ? [q.url, ""] : []));
     if (q?.text && row.quoted_zh) lines.push("### 引用中文译文", "", ...row.quoted_zh.split("\n").map((l) => `> ${l}`), "");
-  } else if (row.body_mode === "full" && row.body_html) {
+  } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
     const isZh = row.language === "zh";
     if (!isZh && row.tr_html && row.tr_complete) lines.push("## 正文 · 中文译文", "", turndown.turndown(row.tr_html), "");
-    lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html), "");
+    lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html || textToHtml(row.body_text!)), "");
   }
   return { filename: `${SITE.mcpPrefix}-${row.id}.md`, body: lines.join("\n").replace(/\n{3,}/g, "\n\n") };
 }

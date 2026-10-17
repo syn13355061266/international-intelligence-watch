@@ -10,23 +10,18 @@ import { guardedFetch } from "../lib/http-fetch.ts";
 import { modelErrorMessage } from "./model-errors.ts";
 import { ProviderRejectedError } from "./receipts.ts";
 import { enqueue, ensureQueue, QUEUES } from "../jobs/queue.ts";
+import { RequestGate } from "./request-gate.ts";
 
 const noAmbient = { env: async () => undefined, fileExists: async () => false };
 const catalog = builtinModels({ authContext: noAmbient });
 
-// A subscription can still enforce a shared request-per-minute limit. Serialising requests here
-// prevents analyze, digest and translation queues from bursting at the same account concurrently.
-let connectionTail: Promise<void> = Promise.resolve();
-async function withConnectionPermit<T>(fn: () => Promise<T>): Promise<T> {
-  const previous = connectionTail;
-  let release!: () => void;
-  connectionTail = new Promise<void>((resolve) => { release = resolve; });
-  await previous;
-  try { return await fn(); } finally { release(); }
-}
+// All subscription work shares bounded concurrency and spaced starts. A 429 pauses new admissions.
+const connectionGate = new RequestGate(() => ({
+  concurrency: Math.max(1, Math.min(4, Math.floor(Number(process.env.MODEL_MAX_CONCURRENCY) || 1))),
+  spacingMs: Math.max(0, Math.min(30_000, Number(process.env.MODEL_MIN_SPACING_MS) || 0)),
+}));
 
 const RATE_LIMIT = /429|too many requests|rate.?limit|exceeded retry limit/i;
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const schema = z.object({ name: z.string().trim().min(1).max(80), provider: z.string().min(1).max(80), authMode: z.enum(["api_key", "oauth"]), modelId: z.string().trim().min(1).max(200), baseUrl: z.string().max(500).optional(), apiKey: z.string().trim().max(4096).optional() });
 export interface Connection { id: string; name: string; provider: string; auth_mode: "api_key" | "oauth"; model_id: string; base_url: string | null; credential: string | null; active: boolean; login_status?: string; login_error?: string | null; verified_at?: Date | null }
 const bad = (message: string) => Object.assign(new Error(message), { statusCode: 400 });
@@ -230,22 +225,16 @@ export async function completeConnection(c: Connection, system: string, user: st
   const models = connectionRuntime(c), model = models.getModel(c.provider, c.model_id);
   if (!model) throw new Error("模型不在当前服务商目录中");
   // The Codex subscription endpoint rejects temperature, even though the SDK accepts it.
-  const result = await withConnectionPermit(async () => {
-    for (let attempt = 0; ; attempt += 1) {
-      const response = await models.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { maxTokens, ...(model.api === "openai-codex-responses" ? {} : { temperature }), transport: "sse", maxRetries: 0, timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
-      if (response.stopReason !== "error" && response.stopReason !== "aborted") return response;
-      const message = response.errorMessage ?? "请求被取消";
-      // Codex may return a 429 as a completed SDK result rather than throwing. Retry only rate limits,
-      // with a bounded pause, and let the durable job retry policy handle all other failures.
-      if (RATE_LIMIT.test(message) && attempt < 2) {
-        await sleep(Math.min(30_000, 5_000 * 2 ** attempt));
-        continue;
-      }
-      // Log only a bounded vocabulary, never provider bodies, authorization URLs or credentials.
-      console.warn(JSON.stringify({ level: "warn", msg: "model request failed", provider: c.provider, model: c.model_id, signals: message.match(/unsupported|not supported|temperature|max_tokens|max_output_tokens|invalid_request_error|model_not_found|insufficient_quota|access_denied|permission|forbidden|401|403|400|429|500|timeout|fetch failed|JSON|response_format|reasoning|not available|does not exist/gi) ?? [] }));
-      if (RATE_LIMIT.test(message)) throw new ProviderRejectedError("模型服务商速率限制，稍后重试", 429, true);
-      throw new Error(modelErrorMessage(new Error(message)));
-    }
+  const result = await connectionGate.run(async () => {
+    const response = await models.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { maxTokens, ...(model.api === "openai-codex-responses" ? {} : { temperature }), transport: "sse", maxRetries: 0, timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
+    if (response.stopReason !== "error" && response.stopReason !== "aborted") return response;
+    const message = response.errorMessage ?? "请求被取消";
+    // Do not hide extra requests inside one receipt attempt; the durable queue owns retries.
+    if (RATE_LIMIT.test(message)) connectionGate.cooldown(60_000);
+    // Log only a bounded vocabulary, never provider bodies, authorization URLs or credentials.
+    console.warn(JSON.stringify({ level: "warn", msg: "model request failed", provider: c.provider, model: c.model_id, signals: message.match(/unsupported|not supported|temperature|max_tokens|max_output_tokens|invalid_request_error|model_not_found|insufficient_quota|access_denied|permission|forbidden|401|403|400|429|500|timeout|fetch failed|JSON|response_format|reasoning|not available|does not exist/gi) ?? [] }));
+    if (RATE_LIMIT.test(message)) throw new ProviderRejectedError("模型服务商速率限制，稍后重试", 429, true);
+    throw new Error(modelErrorMessage(new Error(message)));
   });
   const content = result.content.filter((x) => x.type === "text").map((x) => x.text).join("");
   const usage = { prompt_tokens: result.usage.input + result.usage.cacheRead + result.usage.cacheWrite, completion_tokens: result.usage.output, total_tokens: result.usage.totalTokens };

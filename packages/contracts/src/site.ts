@@ -139,6 +139,8 @@ export interface OutlineEntry {
 }
 
 export interface ItemDetail extends ItemSummary {
+  /** Reading availability; never implies that opening a page starts a model call. */
+  bodyNotice?: "source-link" | "unavailable" | "translation-pending" | null;
   readingMode: "full" | "summary-only";
   author: string | null;
   language: string | null;

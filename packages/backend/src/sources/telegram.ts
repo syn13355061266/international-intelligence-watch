@@ -12,7 +12,11 @@ export function parseTelegram(html: string, channelUrl: string): Candidate[] {
     const match=/^([a-zA-Z0-9_]+)\/(\d+)$/.exec(post);
     if (!match || match[1]!.toLowerCase() !== expected.toLowerCase()) continue;
     const text=el.find(".tgme_widget_message_text").text().replace(/\s+/g," ").trim();
-    const time=el.find("time").attr("datetime"); const date=time ? new Date(time) : null;
+    // Album/unsupported-media markup may close the card before its footer. Match the footer's
+    // permanent link within the same wrapper; never borrow a neighbouring or forwarded post's date.
+    const wrapper=el.closest(".tgme_widget_message_wrap");
+    const ownDate=wrapper.find("a.tgme_widget_message_date").filter((_i,a)=>(($(a).attr("href")??"").split("?")[0]??"").toLowerCase()===`https://t.me/${post}`.toLowerCase()).find("time").attr("datetime");
+    const time=ownDate??el.find("time").attr("datetime"); const date=time ? new Date(time) : null;
     if (!text || !date || !Number.isFinite(date.getTime())) continue;
     candidates.push({url:`https://t.me/${post}`,title:text.slice(0,180),excerpt:text.slice(0,2000),bodyText:text,bodyStatus:"ok",publishedAt:date,author:expected,raw:{telegramChannel:expected,messageId:match[2]}});
   }
@@ -24,6 +28,10 @@ export async function fetchTelegram(source: SourceRow): Promise<Candidate[]> {
   const res=await guardedFetch(url,{timeoutMs:25000});
   if(res.status!==200) throw new FetchError(`Telegram HTTP ${res.status}`,res.status);
   const candidates=parseTelegram(res.text(),url);
-  if(!candidates.length && !res.text().includes("tgme_widget_message")) throw new FetchError("Telegram public preview unavailable; channel may be private or blocked");
+  if(!candidates.length) {
+    const $=cheerio.load(res.text());
+    if(!$(".tgme_widget_message").length) throw new FetchError("Telegram public preview unavailable; channel may be private or blocked");
+    if($(".tgme_widget_message_text").text().trim()) throw new FetchError("Telegram posts found but their dates could not be parsed");
+  }
   return candidates;
 }

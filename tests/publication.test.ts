@@ -69,6 +69,35 @@ async function get(url: string, headers: Record<string, string> = {}) {
   return { status: res.statusCode, body: res.body, etag: res.headers.etag as string | undefined };
 }
 
+test("a licensed plain-text body remains readable without a translation", async () => {
+  const id = await article();
+  await sql`UPDATE articles SET language = 'en', body_html = NULL WHERE id = ${id}`;
+  await publishArticle(id, released());
+  const page = JSON.parse((await get(`/api/site/items/${id}`)).body);
+  assert.ok(page.body.original.includes(BODY.trim()));
+  assert.equal(page.body.complete, true);
+  assert.equal(page.bodyNotice, "translation-pending");
+  assert.ok((await get(`/items/${id}/markdown`)).body.includes(BODY.trim()));
+});
+
+test("source excerpts never reveal a full translation after a licence is revoked", async () => {
+  const id = await article();
+  await sql`UPDATE articles SET language='en', excerpt='Short publisher description' WHERE id=${id}`;
+  await sql`INSERT INTO translations(article_id,revision,body_html,body_text,origin)
+    VALUES (${id},1,'<p>CONFIDENTIAL-FULL-TRANSLATION</p>','CONFIDENTIAL-FULL-TRANSLATION','source')`;
+  await publishArticle(id, released());
+  await sql`UPDATE publications SET body_mode='summary' WHERE article_id=${id}`;
+  const saved = config.publicSourceExcerpts;
+  config.publicSourceExcerpts = true;
+  try {
+    const page = JSON.parse((await get(`/api/site/items/${id}`)).body);
+    assert.equal(page.body.zh, null);
+    assert.equal(page.bodyNotice, 'source-link');
+    assert.equal(page.hasTranslation, false);
+    assert.ok(!JSON.stringify(page).includes('CONFIDENTIAL-FULL-TRANSLATION'));
+  } finally { config.publicSourceExcerpts = saved; }
+});
+
 test("site reading sends one language while exports retain both, including after withdrawal", async () => {
   const id = await article();
   await sql`UPDATE articles SET language = 'en', body_html = '<h2>Original heading</h2><p>Original full body</p>' WHERE id = ${id}`;

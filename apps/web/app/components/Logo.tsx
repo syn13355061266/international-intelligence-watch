@@ -2,13 +2,12 @@
 // and alt text while using the supplied image instead of repeating the text wordmark in the shell.
 import { SITE } from "@aihot/industry/site";
 
-export function Wordmark({ size = 22, className = "" }: { size?: number; className?: string }) {
-  // The supplied brand artwork contains both the globe mark and the Chinese wordmark. Keep it
-  // wide enough to remain legible in the 180px sidebar and the admin sign-in header.
-  const width = Math.round(size * 5.5);
+export function Wordmark({ size = 140, className = "" }: { size?: number; className?: string }) {
+  // Preserve the supplied horizontal artwork's 3:1 aspect ratio in every header.
+  const width = size;
   return (
     <span className={`inline-flex items-center leading-none ${className}`} aria-label={SITE.name} role="img">
-      <img src="/logo.png" alt={SITE.name} width={width} height={size} className="max-w-full object-fill" />
+      <img src="/logo.png?v=20261011-horizontal" alt={SITE.name} width={width} height={Math.round(size / 3)} className="h-auto max-w-full rounded-sm object-contain dark:bg-white" />
     </span>
   );
 }

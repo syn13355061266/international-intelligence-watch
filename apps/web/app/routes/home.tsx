@@ -65,7 +65,7 @@ export default function Home() {
     <div className="pb-6">
       {/* Phones: brand bar, today's hot topics, then the feed under "最新精选". */}
       <div className="flex h-14 items-center justify-between lg:hidden">
-        <Wordmark size={20} className="text-ink" />
+        <Wordmark size={144} className="text-ink" />
         <TodayLabel />
       </div>
       <div className="hidden lg:block">

@@ -12772,6 +12772,34 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
+    },
+    {
+      "id": "intel-official-govuk-fcdo",
+      "name": "英国外交部官方公告",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom",
+        "fetchPublicContent": true,
+        "_intelligence": {
+          "sourceTier": 1
+        },
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "signal_group_id": "publisher:gov.uk",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "diplomacy",
+        "overseas-interests"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
     }
   ]
 }

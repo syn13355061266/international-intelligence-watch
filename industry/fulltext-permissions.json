@@ -1,0 +1,17 @@
+{
+  "reviewedAt": "2026-10-11",
+  "sources": [
+    {
+      "ids": ["intel-official-govuk-fcdo"],
+      "policy": "https://www.gov.uk/help/reuse-govuk-content",
+      "attribution": "Contains public sector information licensed under the Open Government Licence v3.0.",
+      "scope": "GOV.UK official text; excludes third-party material, logos and separately restricted content. Chinese text is an unofficial AI translation."
+    },
+    {
+      "ids": ["intel-official-council-press", "intel-official-council-foreign-affairs", "intel-official-council-summits"],
+      "policy": "https://www.consilium.europa.eu/en/about-site/copyright/",
+      "attribution": "© European Union, 2026. Source: Council of the European Union.",
+      "scope": "Official releases and meeting text; excludes third-party materials and separately restricted documents. Chinese text is an unofficial AI translation."
+    }
+  ]
+}

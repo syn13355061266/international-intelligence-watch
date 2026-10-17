@@ -3,6 +3,7 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { sql } from "../db.ts";
+import { credential } from "../config.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { jinaRead } from "../providers/jina.ts";
@@ -47,17 +48,24 @@ export function readable(html: string, url: string): ExtractedBody | null {
 }
 
 export async function extractFromUrl(url: string, opts: { allowJina: boolean; subject: string }): Promise<ExtractedBody | null> {
+  let transient: Error | null = null;
   try {
     const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 6 * 1024 * 1024 });
     const type = res.headers.get("content-type") ?? "";
+    if (res.status === 429 || res.status >= 500) transient = new Error(`body fetch HTTP ${res.status}`);
     if (res.status === 200 && /html/.test(type)) {
       const got = readable(res.text(), res.url);
       if (got) return got;
     }
-  } catch {
-    // fall through to Jina
+  } catch (error) {
+    transient = error instanceof Error ? error : new Error(String(error));
   }
-  if (!opts.allowJina) return null;
+  if (!opts.allowJina || !credential("collectors", "JINA_API_KEY")) {
+    // An outage is retryable, not proof that the page has no body. Missing optional credentials
+    // must never turn a free fetch into a failing paid request.
+    if (transient) throw transient;
+    return null;
+  }
   try {
     const page = await jinaRead(url, { purpose: "body_fallback", subject: opts.subject });
     const html = markdownBody(page.markdown, url);
