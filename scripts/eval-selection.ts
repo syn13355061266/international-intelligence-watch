@@ -15,6 +15,7 @@ import {
   SELECTION_PROMPT_VERSION,
   buildScoreInput,
   normalizeAnalysis,
+  scoresSelect,
   runSelectionPrefilter,
   runSelectionScores,
   tierThreshold,
@@ -156,7 +157,7 @@ for (const model of models) {
       // Model output is independent of source tier; the decision threshold is not.
       const scores = shared.scores ? { ...shared.scores, threshold } : null;
       const run: AnalysisRun = { prefilter, scores, writing: null, structure: null };
-      return { r, out: normalizeAnalysis(run), receiptIds, error: null as string | null };
+      return { r, out: { ...normalizeAnalysis(run), selected: scoresSelect(scores) }, receiptIds, error: null as string | null };
     } catch (error) {
       return { r, out: null, receiptIds, error: String(error).slice(0, 200) };
     }

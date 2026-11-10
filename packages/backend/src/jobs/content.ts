@@ -50,7 +50,7 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
   const signal = row.participation_mode !== "editorial";
   const pending = row.body_status === "pending";
   const wantsBody = row.config.fetchPublicContent === true || !!row.config.detail || row.kind === "web_list";
-  const needsPage = !signal && (wantsBody || (row.bare && pageFetchable(row.url, row.kind)));
+  const needsPage = !signal && pageFetchable(row.url, row.kind) && (wantsBody || row.bare);
   const needsXArticle = row.kind === "x_search" && (!signal || (row.participation_mode === "hot_signal" && !historical));
   return { step: pending && (needsPage || needsXArticle) ? "extract" : "analyze", signal, historical, priority: contentPriority(row) };
 }
@@ -145,7 +145,12 @@ async function processingInput(articleId: string) {
 /** attemptTag makes an explicit re-evaluation a new (paid) request; the same tag reuses its receipt. */
 export async function processArticle(articleId: string, opts: { attemptTag?: string } = {}): Promise<{ state: string }> {
   const row = await processingInput(articleId);
-  return row ? processRevision(articleId, row, opts) : { state: "missing" };
+  if (!row) return { state: "missing" };
+  try {
+    return await processRevision(articleId, row, opts);
+  } catch (error) {
+    return afterFailure(articleId, row.revision, error);
+  }
 }
 
 async function processRevision(articleId: string, row: NonNullable<Awaited<ReturnType<typeof processingInput>>>, opts: { attemptTag?: string }): Promise<{ state: string }> {
@@ -165,8 +170,8 @@ async function processRevision(articleId: string, row: NonNullable<Awaited<Retur
     }
     if (result.stale) return { state: "stale" }; // the newer revision has its own job
     await publishArticle(articleId);
-    // History is archived but founds no event (isHistorical).
-    if (result.output.relevance === "pass" && !row.historical) await enqueue(QUEUES.group, { articleId }, { singletonKey: articleId, priority: PRIORITY.live });
+    // The grouping worker settles history too, without founding an event or leaving it pending.
+    if (result.output.relevance === "pass") await enqueue(QUEUES.group, { articleId }, { singletonKey: articleId, priority: row.historical ? PRIORITY.history : PRIORITY.live });
     await sql`UPDATE articles SET processing_attempts = 0, processing_retry_at = NULL, processing_queued_at = NULL
               WHERE id = ${articleId} AND revision = ${row.revision}`;
     return { state: result.output.relevance };
@@ -213,15 +218,7 @@ async function afterFailure(articleId: string, revision: number, error: unknown)
 }
 
 export async function registerContentJobs(boss: PgBoss, concurrency = Number(process.env.ANALYZE_CONCURRENCY || 6)) {
-  await work(boss, QUEUES.analyze, { localConcurrency: concurrency, pollingIntervalSeconds: 2 }, async ({ articleId, attemptTag }) => {
-    const row = await processingInput(articleId);
-    if (!row) return { state: "missing" };
-    try {
-      return await processRevision(articleId, row, { attemptTag });
-    } catch (error) {
-      return afterFailure(articleId, row.revision, error);
-    }
-  });
+  await work(boss, QUEUES.analyze, { localConcurrency: concurrency, pollingIntervalSeconds: 2 }, ({ articleId, attemptTag }) => processArticle(articleId, { attemptTag }));
 }
 
 /**
@@ -229,11 +226,12 @@ export async function registerContentJobs(boss: PgBoss, concurrency = Number(pro
  * on the excerpt it has ("unconfirmed" body, never a wrong one).
  */
 export async function registerExtractionJobs(boss: PgBoss) {
-  await work(boss, QUEUES.extractBody, { localConcurrency: Number(process.env.EXTRACT_CONCURRENCY || 2), pollingIntervalSeconds: 2 }, async ({ articleId }) => {
+  await work(boss, QUEUES.extractBody, { localConcurrency: Number(process.env.EXTRACT_CONCURRENCY || 4), pollingIntervalSeconds: 2 }, async ({ articleId }) => {
     const [input] = await sql<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId}`;
     if (!input) return { state: "missing" };
     try {
       const state = await extractArticleBody(articleId);
+      if (state !== "skipped") await sql`UPDATE articles SET processing_attempts = 0, processing_retry_at = NULL WHERE id = ${articleId} AND revision = ${input.revision}`;
       // A newer revision may still need a body after this task's result was discarded.
       await queueProcessing(articleId);
       return { state };
@@ -268,8 +266,9 @@ export async function sweepUnprocessed(): Promise<{ enqueued: number }> {
       AND (processing_retry_at IS NULL OR processing_retry_at <= now())
       AND (processing_queued_at IS NULL OR processing_queued_at < now() - ${QUEUED_STALE}::interval)
     ORDER BY discovered_at DESC LIMIT 500`;
-  for (const r of rows) await queueProcessing(r.id);
-  return { enqueued: rows.length };
+  let enqueued = 0;
+  for (const r of rows) if (await queueProcessing(r.id)) enqueued += 1;
+  return { enqueued };
 }
 
 /** The receipts of an article's processing: an unknown outcome on any of them stops the article. */

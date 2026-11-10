@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import type { Credential, CredentialStore, AuthPrompt, AuthEvent, AuthOperationOptions, Models } from "@earendil-works/pi-ai";
+import type { Credential, CredentialStore, AuthPrompt, AuthEvent, AuthOperationOptions, Models, ThinkingLevel } from "@earendil-works/pi-ai";
 import { sql, type Db } from "../db.ts";
 import { config, credential } from "../config.ts";
 import { audit } from "../audit.ts";
@@ -15,15 +15,21 @@ import { RequestGate } from "./request-gate.ts";
 const noAmbient = { env: async () => undefined, fileExists: async () => false };
 const catalog = builtinModels({ authContext: noAmbient });
 
-// All subscription work shares bounded concurrency and spaced starts. A 429 pauses new admissions.
+// Only subscription work needs this extra gate. Ordinary API calls follow the worker concurrency
+// and receipt budgets, just as upstream; a subscription 429 still pauses new admissions.
 const connectionGate = new RequestGate(() => ({
-  concurrency: Math.max(1, Math.min(4, Math.floor(Number(process.env.MODEL_MAX_CONCURRENCY) || 1))),
+  concurrency: Math.max(1, Math.min(64, Math.floor(Number(process.env.MODEL_MAX_CONCURRENCY) || 12))),
   spacingMs: Math.max(0, Math.min(30_000, Number(process.env.MODEL_MIN_SPACING_MS) || 0)),
 }));
 
 const RATE_LIMIT = /429|too many requests|rate.?limit|exceeded retry limit/i;
 const schema = z.object({ name: z.string().trim().min(1).max(80), provider: z.string().min(1).max(80), authMode: z.enum(["api_key", "oauth"]), modelId: z.string().trim().min(1).max(200), baseUrl: z.string().max(500).optional(), apiKey: z.string().trim().max(4096).optional() });
 export interface Connection { id: string; name: string; provider: string; auth_mode: "api_key" | "oauth"; model_id: string; base_url: string | null; credential: string | null; active: boolean; login_status?: string; login_error?: string | null; verified_at?: Date | null }
+export function connectionReasoning(c: Pick<Connection, "auth_mode">): ThinkingLevel | undefined {
+  if (c.auth_mode !== "oauth") return undefined;
+  const level = process.env.MODEL_REASONING_LEVEL ?? "low";
+  return (["minimal", "low", "medium", "high", "xhigh", "max"] as const).find(value => value === level) ?? "low";
+}
 const bad = (message: string) => Object.assign(new Error(message), { statusCode: 400 });
 function encryptionKey() {
   const secret = credential("auth", "MODEL_CREDENTIALS_SECRET") ?? credential("auth", "SESSION_SECRET");
@@ -225,8 +231,9 @@ export async function completeConnection(c: Connection, system: string, user: st
   const models = connectionRuntime(c), model = models.getModel(c.provider, c.model_id);
   if (!model) throw new Error("模型不在当前服务商目录中");
   // The Codex subscription endpoint rejects temperature, even though the SDK accepts it.
-  const result = await connectionGate.run(async () => {
-    const response = await models.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { maxTokens, ...(model.api === "openai-codex-responses" ? {} : { temperature }), transport: "sse", maxRetries: 0, timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
+  const started = Date.now();
+  const call = async () => {
+    const response = await models.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { maxTokens, reasoning: connectionReasoning(c), ...(model.api === "openai-codex-responses" ? {} : { temperature }), transport: "sse", maxRetries: 0, timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
     if (response.stopReason !== "error" && response.stopReason !== "aborted") return response;
     const message = response.errorMessage ?? "请求被取消";
     // Do not hide extra requests inside one receipt attempt; the durable queue owns retries.
@@ -235,9 +242,10 @@ export async function completeConnection(c: Connection, system: string, user: st
     console.warn(JSON.stringify({ level: "warn", msg: "model request failed", provider: c.provider, model: c.model_id, signals: message.match(/unsupported|not supported|temperature|max_tokens|max_output_tokens|invalid_request_error|model_not_found|insufficient_quota|access_denied|permission|forbidden|401|403|400|429|500|timeout|fetch failed|JSON|response_format|reasoning|not available|does not exist/gi) ?? [] }));
     if (RATE_LIMIT.test(message)) throw new ProviderRejectedError("模型服务商速率限制，稍后重试", 429, true);
     throw new Error(modelErrorMessage(new Error(message)));
-  });
+  };
+  const result = await (c.auth_mode === "oauth" ? connectionGate.run(call) : call());
   const content = result.content.filter((x) => x.type === "text").map((x) => x.text).join("");
   const usage = { prompt_tokens: result.usage.input + result.usage.cacheRead + result.usage.cacheWrite, completion_tokens: result.usage.output, total_tokens: result.usage.totalTokens };
   // Catalog prices are estimates; do not label subscription usage as an actual monetary charge.
-  return { response: { choices: [{ message: { content } }], usage }, usage, requestId: null, cost: null };
+  return { response: { choices: [{ message: { content }, finish_reason: result.stopReason === "length" ? "length" : "stop" }], usage, _latencyMs: Date.now() - started }, usage, requestId: null, cost: null };
 }

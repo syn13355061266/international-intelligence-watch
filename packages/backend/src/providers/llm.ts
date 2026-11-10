@@ -6,7 +6,7 @@ import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import { completeReceipt, paidRequest, ProviderRejectedError, rejectReceivedResponse } from "./receipts.ts";
 import { sql } from "../db.ts";
-import { activeConnection, completeConnection, getConnection } from "./model-connections.ts";
+import { activeConnection, completeConnection, connectionReasoning, getConnection } from "./model-connections.ts";
 
 export interface ModelSpec {
   key: string;
@@ -194,12 +194,12 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
       model: spec.model,
       purpose: opts.purpose,
       subject: opts.subject,
-      identity: { model: spec.model, ...(connection ? { connection: connection.id } : {}), promptVersion: opts.promptVersion, system: sha256(opts.system), user: sha256(userText), temperature, maxTokens, extra: spec.extra ?? null },
+      identity: { model: spec.model, ...(connection ? { connection: connection.id, reasoning: connectionReasoning(connection) ?? null } : {}), promptVersion: opts.promptVersion, system: sha256(opts.system), user: sha256(userText), temperature, maxTokens, extra: spec.extra ?? null },
       requestSummary: { promptVersion: opts.promptVersion, systemHash: sha256(opts.system), userHash: sha256(userText), userChars: userText.length, temperature, maxTokens },
       attemptTag: opts.attemptTag,
     },
     async () => {
-      if (connection) return completeConnection(connection, opts.system, typeof opts.user === "string" ? opts.user : opts.user.filter((p) => p.type === "text").map((p) => p.text).join("\n"), maxTokens, temperature, opts.timeoutMs ?? 120_000, opts.json !== false);
+      if (connection) return completeConnection(connection, opts.system, typeof opts.user === "string" ? opts.user : Array.isArray(opts.user) ? opts.user.filter((p) => p.type === "text").map((p) => p.text).join("\n") : userText, maxTokens, temperature, opts.timeoutMs ?? 120_000, opts.json !== false);
       const started = Date.now();
       let res: Response;
       try {
@@ -239,6 +239,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   const content = response.choices?.[0]?.message?.content ?? "";
   let parsed: z.infer<S>;
   try {
+    if (response.choices?.[0]?.finish_reason === "length") throw new Error("output token limit reached (finish_reason=length)");
     parsed = opts.schema.parse(opts.parse ? opts.parse(content) : extractJson(content));
   } catch (error) {
     // Unusable output: record it and let a later attempt pay for a fresh answer.

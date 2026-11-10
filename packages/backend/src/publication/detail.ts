@@ -10,6 +10,7 @@ import { ITEM_COLUMNS, ITEM_FROM, toItemSummary, xView, type ItemRow } from "./i
 import { itemUrl } from "./links.ts";
 import { hasItemPage } from "./rules.ts";
 import { SITE } from "@aihot/industry/site";
+import { cjkRatio, isChineseText, stripTags } from "../lib/text.ts";
 
 interface DetailRow extends ItemRow {
   excerpt: string | null;
@@ -50,9 +51,11 @@ async function loadRow(id: string): Promise<DetailRow | null> {
  * Public detail (rules.hasItemPage): items the lists leave out (low relevance, merged duplicates, no
  * Chinese summary yet) keep a noindex page; withdrawn and hot_signal items are a 404.
  */
-export async function loadItemDetail(id: string, now = new Date()): Promise<DetailResult> {
+export async function loadItemDetail(id: string, now = new Date(), opts: { localPreview?: boolean } = {}): Promise<DetailResult> {
   const row = await loadRow(id);
   if (!row || !hasItemPage({ visibility: row.visibility, sourceMode: row.source_mode })) return { kind: "not_found" };
+  const localPreview = opts.localPreview === true && config.localFulltextPreview && row.visibility === "public";
+  if (localPreview && row.body_status === "ok" && (row.body_text || row.body_html || row.x_post)) row.body_mode = "full";
 
   const summary = toItemSummary(row);
   if (row.channel === "x" && row.body_mode === "full") summary.x = xView(row, false, true);
@@ -92,9 +95,11 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       complete: true,
     };
   } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
-    const isZh = row.language === "zh" || (/[一-鿿]/.test(row.body_text?.slice(0, 400) ?? "") && row.language !== "en");
+    const isZh = isChineseText(row.body_text ?? stripTags(row.body_html ?? ""), row.language);
     const original = proxyBodyImages(row.body_html || textToHtml(row.body_text!));
-    const zh = isZh ? original : row.tr_html ? proxyBodyImages(row.tr_html) : null;
+    // A complete flag alone is not proof of a Chinese answer; legacy English echoes stay original.
+    const validTranslation = row.tr_html && row.tr_complete && cjkRatio(stripTags(row.tr_html)) >= 0.1;
+    const zh = isZh ? original : validTranslation ? proxyBodyImages(row.tr_html!) : null;
     const primary = withOutline(zh ?? original);
     outline = primary.outline;
     body = {
@@ -108,7 +113,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
     // fetched article body, never applies to X, and remains marked incomplete so the source link is
     // still the canonical place for the full article.
     const text = String(row.excerpt ?? "").trim();
-    const isZh = row.language === "zh" || /[一-鿿]/.test(text.slice(0, 400));
+    const isZh = isChineseText(text, row.language);
     const original = text ? textToHtml(text) : null;
     const selected = original;
     if (selected) {
@@ -148,14 +153,15 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
 
   const detail: ItemDetail = {
     ...summary,
+    ...(localPreview ? { localPreview: true } : {}),
     readingMode: "full",
     author: row.author,
     language: row.language,
     body,
-    bodyNotice: row.body_mode !== "full" ? "source-link" : !body ? "unavailable" : !body.zh && row.language !== "zh" ? "translation-pending" : null,
+    bodyNotice: row.body_mode !== "full" ? "source-link" : !body ? "unavailable" : !body.zh ? "translation-pending" : null,
     outline,
     relatedStories: related,
-    indexable: row.indexable,
+    indexable: localPreview ? false : row.indexable,
     markdownAvailable: markdownAvailable(row),
     group,
   };
@@ -175,8 +181,9 @@ export function markdownAvailable(row: {
 
 const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
 
-export async function exportMarkdown(id: string): Promise<{ filename: string; body: string } | null> {
+export async function exportMarkdown(id: string, opts: { localPreview?: boolean } = {}): Promise<{ filename: string; body: string } | null> {
   const row = await loadRow(id);
+  if (row && opts.localPreview && config.localFulltextPreview && row.visibility === "public" && row.source_mode === "editorial" && row.body_status === "ok") row.body_mode = "full";
   if (!row || !markdownAvailable(row)) return null;
   const lines: string[] = [];
   lines.push(`# ${row.title}`, "");
@@ -194,8 +201,8 @@ export async function exportMarkdown(id: string): Promise<{ filename: string; bo
     if (q?.text) lines.push(`## 引用 @${q.handle ?? ""}`, "", ...String(q.text).split("\n").map((l) => `> ${l}`), "", ...(q.url ? [q.url, ""] : []));
     if (q?.text && row.quoted_zh) lines.push("### 引用中文译文", "", ...row.quoted_zh.split("\n").map((l) => `> ${l}`), "");
   } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
-    const isZh = row.language === "zh";
-    if (!isZh && row.tr_html && row.tr_complete) lines.push("## 正文 · 中文译文", "", turndown.turndown(row.tr_html), "");
+    const isZh = isChineseText(row.body_text ?? stripTags(row.body_html ?? ""), row.language);
+    if (!isZh && row.tr_html && row.tr_complete && cjkRatio(stripTags(row.tr_html)) >= 0.1) lines.push("## 正文 · 中文译文", "", turndown.turndown(row.tr_html), "");
     lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html || textToHtml(row.body_text!)), "");
   }
   return { filename: `${SITE.mcpPrefix}-${row.id}.md`, body: lines.join("\n").replace(/\n{3,}/g, "\n\n") };

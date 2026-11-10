@@ -72,6 +72,7 @@ export async function startCloudHost(input = process.env): Promise<void> {
   try {
     await setup('scripts/migrate.ts');
     if (input.CLOUD_SEED === 'true') await setup('scripts/seed.ts');
+    if (input.CLOUD_SYNC_TOPICS === 'true') await setup('scripts/sync-topics.ts');
     if (stopping) return;
     launch('api', 'apps/api/src/main.ts');
     const deadline = Date.now() + 60_000;

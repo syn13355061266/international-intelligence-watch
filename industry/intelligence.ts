@@ -1,5 +1,6 @@
 // Importance is deterministic. The model supplies bounded event labels, never source counts or dates.
-export const IMPORTANCE_RULE_VERSION = "intelligence-v1-55-20-15-10";
+import { CHINA_RELEVANCE_RULE_VERSION } from "./china-relevance.ts";
+export const IMPORTANCE_RULE_VERSION = `intelligence-v2-${CHINA_RELEVANCE_RULE_VERSION}`;
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
 export type Severity = typeof SEVERITIES[number];
 export interface IntelligenceLabels {
@@ -14,6 +15,8 @@ export interface ImportanceEvidence {
   firstParty: boolean;
   publishedAt: Date | null;
   labels: IntelligenceLabels | null;
+  /** Verified against the original material by the score step; absent for legacy analyses. */
+  chinaRelevance?: number | null;
 }
 export interface ImportanceBreakdown {
   score: number;
@@ -28,6 +31,10 @@ export interface ImportanceBreakdown {
   diplomacyBonus: number;
   entityBonus: number;
   coverage: "classified" | "unclassified";
+  originalScore: number;
+  chinaRelevance: number;
+  chinaCoverage: "assessed" | "unassessed";
+  globalProtected: boolean;
 }
 const LEVEL: Record<Severity, number> = { critical: 100, high: 75, medium: 50, low: 25, info: 0 };
 const DAY = 86400_000;
@@ -61,5 +68,14 @@ export function computeImportance(evidence: ImportanceEvidence[], at: Date): Imp
   const corroborationScore = Math.min(peers.length, 5) * 20;
   const recencyScore = dated.length ? Math.max(...dated.map(e => Math.max(0, Math.min(1, 1 - (at.getTime() - e.publishedAt!.getTime()) / DAY)) * 100)) : 0;
   const base = Math.round(LEVEL[severity] * .55 + sourceTierScore * .20 + corroborationScore * .15 + recencyScore * .10);
-  return {score: base + diplomacyBonus + entityBonus, base, severity, severityScore: LEVEL[severity], sourceTierScore, corroborationScore, recencyScore: Math.round(recencyScore), independentPublishers: peers.length, entitySources, diplomacyBonus, entityBonus, coverage: labelled.length ? "classified" : "unclassified"};
+  const originalScore = base + diplomacyBonus + entityBonus;
+  const assessed = dated.filter(e => typeof e.chinaRelevance === "number" && Number.isFinite(e.chinaRelevance)
+    && e.labels && !e.labels.historical);
+  const chinaRelevance = Math.max(0, ...assessed.map(e => Math.max(0, Math.min(100, e.chinaRelevance!))));
+  const globalProtected = established && (severity === "high" || severity === "critical");
+  // Unknown legacy relevance is not zero: preserve its previous rank until it is assessed.
+  const weighted = assessed.length ? Math.round(originalScore * .7 + chinaRelevance * .3) : originalScore;
+  const score = globalProtected ? Math.max(originalScore, weighted) : weighted;
+  return {score, base, originalScore, chinaRelevance, chinaCoverage: assessed.length ? "assessed" : "unassessed", globalProtected,
+    severity, severityScore: LEVEL[severity], sourceTierScore, corroborationScore, recencyScore: Math.round(recencyScore), independentPublishers: peers.length, entitySources, diplomacyBonus, entityBonus, coverage: labelled.length ? "classified" : "unclassified"};
 }

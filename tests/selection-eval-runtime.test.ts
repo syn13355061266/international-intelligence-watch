@@ -1,4 +1,4 @@
-import { stub, tag } from "./setup.ts";
+import { stub, tag, selectionAssessment } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { execFile } from "node:child_process";
@@ -104,10 +104,10 @@ test("default evaluation follows the production score route and shares duplicate
       choices: [{ message: { content: JSON.stringify({ label: "PASS", reason: "relevant" }) } }],
       usage: { prompt_tokens: 10, completion_tokens: 5 },
     }));
-    const score = await stub(async () => {
+    const score = await stub(async (_hit, request) => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       return {
-        choices: [{ message: { content: JSON.stringify({ attentionScore: 70 }) } }],
+        choices: [{ message: { content: JSON.stringify(selectionAssessment(70, JSON.parse(request.body).messages.at(-1).content)) } }],
         usage: { prompt_tokens: 100, completion_tokens: 20 },
       };
     });
@@ -133,8 +133,8 @@ test("a shared unusable score fails every matching case once, then retry usage i
       choices: [{ message: { content: JSON.stringify({ label: "PASS", reason: "relevant" }) } }],
       usage: { prompt_tokens: 10, completion_tokens: 5 },
     }));
-    const score = await stub((hit) => ({
-      choices: [{ message: { content: hit === 1 ? "not JSON" : JSON.stringify({ attentionScore: 70 }) } }],
+    const score = await stub((hit, request) => ({
+      choices: [{ message: { content: hit === 1 ? "not JSON" : JSON.stringify(selectionAssessment(70, JSON.parse(request.body).messages.at(-1).content)) } }],
       usage: { prompt_tokens: hit === 1 ? 100 : 300, completion_tokens: 20 },
     }));
     t.after(async () => { await Promise.all([prefilter.close(), score.close()]); });

@@ -1,6 +1,46 @@
 {
   "topics": [
     {
+      "slug": "foreign-missions-in-china",
+      "name": "外国驻华使领馆",
+      "group": "genre",
+      "tags": [
+        "外国驻华使领馆"
+      ],
+      "definition": "外国驻华使领馆及其人员的公开外交、领事、交流与活动动态；不含中国驻外使领馆。",
+      "related": []
+    },
+    {
+      "slug": "foreign-enterprises-in-china",
+      "name": "外国驻华企业",
+      "group": "genre",
+      "tags": [
+        "外国驻华企业"
+      ],
+      "definition": "外国企业在华经营、投资、产业合作及商协会的公开动态。",
+      "related": []
+    },
+    {
+      "slug": "foreign-delegations-to-china",
+      "name": "外国来华团组",
+      "group": "genre",
+      "tags": [
+        "外国来华团组"
+      ],
+      "definition": "外国代表团、访问团及考察团来华访问、交流、调研和活动安排。",
+      "related": []
+    },
+    {
+      "slug": "foreign-media-fieldwork-in-china",
+      "name": "外国媒体搜情踏查",
+      "group": "genre",
+      "tags": [
+        "外国媒体搜情踏查"
+      ],
+      "definition": "外国媒体及记者来华或在华采访、调研与实地走访的公开报道；不推断未公开活动。",
+      "related": []
+    },
+    {
       "slug": "country-us",
       "name": "美国",
       "group": "company",
@@ -198,137 +238,6 @@
         "生物安全"
       ],
       "definition": "持续追踪生物技术与生物安全对国家安全、国际合作与竞争格局的影响。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-embassies",
-      "name": "使领馆动态",
-      "group": "genre",
-      "tags": [
-        "使领馆"
-      ],
-      "definition": "追踪使领馆动态的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-consular",
-      "name": "领事保护与撤侨",
-      "group": "genre",
-      "tags": [
-        "领事保护"
-      ],
-      "definition": "追踪领事保护与撤侨的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-meetings",
-      "name": "国际会议",
-      "group": "genre",
-      "tags": [
-        "国际会议",
-        "会议举办"
-      ],
-      "definition": "汇集国际会议消息与举办日程，包括筹备、举办时间地点、参会安排及会议成果。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-forums",
-      "name": "国际论坛",
-      "group": "genre",
-      "tags": [
-        "国际论坛"
-      ],
-      "definition": "追踪国际论坛的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-summits",
-      "name": "峰会与部长级会议",
-      "group": "genre",
-      "tags": [
-        "国际峰会"
-      ],
-      "definition": "追踪峰会与部长级会议的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-participation",
-      "name": "参会与外交出访",
-      "group": "genre",
-      "tags": [
-        "参会动态"
-      ],
-      "definition": "追踪参会与外交出访的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-joint-statements",
-      "name": "联合声明与协议",
-      "group": "genre",
-      "tags": [
-        "联合声明"
-      ],
-      "definition": "追踪联合声明与协议的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-un",
-      "name": "联合国与安理会",
-      "group": "genre",
-      "tags": [
-        "联合国"
-      ],
-      "definition": "追踪联合国与安理会的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-nato",
-      "name": "北约",
-      "group": "genre",
-      "tags": [
-        "北约"
-      ],
-      "definition": "追踪北约的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-asean",
-      "name": "东盟",
-      "group": "genre",
-      "tags": [
-        "东盟"
-      ],
-      "definition": "追踪东盟的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-au",
-      "name": "非洲联盟",
-      "group": "genre",
-      "tags": [
-        "非洲联盟"
-      ],
-      "definition": "追踪非洲联盟的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-sco",
-      "name": "上海合作组织",
-      "group": "genre",
-      "tags": [
-        "上合组织"
-      ],
-      "definition": "追踪上海合作组织的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
-      "related": []
-    },
-    {
-      "slug": "diplomacy-brics",
-      "name": "金砖国家",
-      "group": "genre",
-      "tags": [
-        "金砖国家"
-      ],
-      "definition": "追踪金砖国家的最新公开消息、举办日程、参会安排及会议成果；报道日期不等于活动日期。",
       "related": []
     }
   ]

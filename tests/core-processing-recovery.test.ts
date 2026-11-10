@@ -1,5 +1,5 @@
 // Recovery must finish the same evaluation that failed, and commit the release, queue and audit together.
-import { gate, Reply, stub, tag } from "./setup.ts";
+import { gate, Reply, stub, tag, selectionAssessment } from "./setup.ts";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 import { after, afterEach, before, test } from "node:test";
@@ -34,7 +34,7 @@ const provider = await stub(async (_hit, request) => {
     return new Reply(503, { error: "temporary outage" });
   }
   const content = step === "prefilter" ? { label: original ? "BLOCK" : "PASS", reason: "local fixture" }
-    : step === "score" ? { attentionScore: 80 }
+    : step === "score" ? selectionAssessment(80, String(body.messages.at(-1).content))
     : step === "structure" ? { category: "energy-minerals", tags: [], subjects: [], fact: null }
     : { itemType: "policy_change", authorRole: "principal", tags: ["能源矿产"], editorialJudgment: "模型能力提升", titleZh: `新判断 ${T}`, summaryZh: "稀土并提供评测和价格。" };
   return { choices: [{ message: { content: JSON.stringify(content) } }] };

@@ -1,6 +1,6 @@
 // The open-source default: one OpenAI-compatible model (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL) runs every
 // step of the analysis, with no per-step configuration.
-import { stub, tag } from "./setup.ts";
+import { stub, tag, selectionAssessment } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
@@ -21,7 +21,7 @@ const provider = await stub((_hit, req) => {
   seen.push({ model: body.model, system });
   const content =
     system.includes("宽召回") ? { label: "PASS", reason: "测试" }
-    : system.includes("事件注意力评分器") ? { attentionScore: 80 }
+    : system.includes("事件注意力评分器") ? selectionAssessment(80, user)
     : system.includes("内容理解编辑") ? { itemType: "supply_disruption", authorRole: "principal", tags: ["能源矿产"], editorialJudgment: "理由", titleZh: "一个模型的标题", summaryZh: "一个模型写的摘要。第二句。" }
     : system.includes("资料结构化助手") ? { category: "energy-minerals", tags: ["能源矿产"], subjects: [], fact: null }
     : user.includes("title_zh") ? "title_zh: 标题\nsummary_zh: 摘要。"

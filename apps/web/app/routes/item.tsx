@@ -1,6 +1,6 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { data as withHeaders, Link, useLoaderData, useNavigate } from "react-router";
 import type { Route } from "./+types/item";
 import type { SiteItemDetail } from "@aihot/contracts/site";
 import { loadOr404 } from "../lib/api.server";
@@ -23,7 +23,7 @@ const PosterSheet = lazy(() => import("../features/item/PosterSheet"));
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const item = await loadOr404<SiteItemDetail>(`/api/site/items/${encodeURIComponent(params.id)}`, { signal: request.signal });
-  return { item };
+  return withHeaders({ item }, { headers: item.localPreview ? { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" } : {} });
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -44,7 +44,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
   });
 }
 
-export function headers() {
+export function headers({ loaderHeaders }: Route.HeadersArgs) {
+  if (loaderHeaders.get("Cache-Control") === "private, no-store") return loaderHeaders;
   return { "Cache-Control": "public, max-age=0, s-maxage=600, stale-while-revalidate=120" };
 }
 
@@ -324,6 +325,7 @@ export default function ItemPage() {
           )}
 
           {summaryOnly && <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">应来源方要求，这里只提供摘要与原文入口。完整内容请阅读原文。</p>}
+          {item.localPreview && <p className="mt-6 text-[12px] leading-relaxed text-ink-4">本机个人试阅 · 仅供本机阅读已抓取资料，不代表来源允许公开转载。中文译文由 AI 生成，以原文为准。</p>}
 
           {!summaryOnly && !bodyHtml && (
             <section className="mt-9 border-t border-line pt-5 xl:mt-10" aria-label="正文">

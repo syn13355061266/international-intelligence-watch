@@ -144,6 +144,7 @@ test("Codex subscription inference omits unsupported temperature and accepts the
     const bytes = typeof options.body === "string" ? Buffer.from(options.body) : Buffer.from(options.body as Uint8Array);
     const body = JSON.parse((headers.get("content-encoding") === "zstd" ? zstdDecompressSync(bytes) : bytes).toString());
     assert.equal(body.model, "gpt-6-sol"); assert.equal(Object.hasOwn(body, "temperature"), false);
+    assert.equal(body.reasoning?.effort, "low", "routine editorial jobs do not inherit expensive coding reasoning");
     const events = [
       { type: "response.output_item.added", output_index: 0, item: { type: "message", id: "stub-msg", role: "assistant", content: [] } },
       { type: "response.output_text.delta", output_index: 0, delta: '{"ok":true}' },

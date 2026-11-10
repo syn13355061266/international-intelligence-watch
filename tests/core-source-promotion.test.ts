@@ -1,5 +1,5 @@
 // 信源转为编辑来源后，补齐尚未分析的资料；沿用正文、历史归档和人工覆盖规则。
-import { stub, tag } from "./setup.ts";
+import { stub, tag, selectionAssessment } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
@@ -13,6 +13,7 @@ import { ingestItems } from "@aihot/backend/ingest/items";
 import { processArticle, queueProcessing, settleNonEditorial, sweepUnprocessed } from "@aihot/backend/jobs/content";
 import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
 import { republishSource } from "@aihot/backend/publication/publish";
+import { groupArticle } from "@aihot/backend/events/group";
 
 const T = tag();
 const BODY = `A lab released a new AI model with benchmark results and pricing details. ${T} `.repeat(12);
@@ -23,7 +24,7 @@ const provider = await stub((_hit, req) => {
   const input = JSON.stringify(body.messages);
   let answer: unknown;
   if (system.includes("宽召回的情报相关性预筛")) answer = { label: input.includes("OFFTOPIC") ? "BLOCK" : "PASS", reason: "测试" };
-  else if (system.includes("事件注意力评分器")) answer = { attentionScore: 80 };
+  else if (system.includes("事件注意力评分器")) answer = selectionAssessment(80, body.messages.at(-1)!.content);
   else if (system.includes("内容理解编辑")) answer = { itemType: "policy_change", authorRole: "principal", tags: ["能源矿产"], editorialJudgment: "测试判断", titleZh: "某实验室发布新模型", summaryZh: "某实验室发布新模型，并公布评测结果和价格。" };
   else if (system.includes("资料结构化助手")) answer = { category: "energy-minerals", tags: ["能源矿产"], subjects: [], fact: { title: "某实验室发布新模型" } };
   else throw new Error("unexpected model request");
@@ -186,7 +187,11 @@ test("promotion preserves history, material identity and manual editorial/groupi
   const [publication] = await sql`SELECT title, summary, selected, visibility FROM publications WHERE article_id = ${old}`;
   assert.deepEqual([publication!.title, publication!.summary, publication!.selected, publication!.visibility], ["人工标题", "人工摘要", false, "withdrawn"]);
   assert.equal((await sql`SELECT 1 FROM fact_articles WHERE article_id = ${old}`).length, 0);
-  assert.equal((await sql`SELECT 1 FROM pgboss.job WHERE name = ${QUEUES.group} AND data->>'articleId' = ${old}`).length, 0, "history adds no event or heat work");
+  const [groupJob] = await sql`SELECT priority FROM pgboss.job WHERE name = ${QUEUES.group} AND data->>'articleId' = ${old}`;
+  assert.equal(groupJob!.priority, -2, "history settles after current material");
+  await groupArticle(old);
+  assert.equal((await sql`SELECT 1 FROM fact_articles WHERE article_id = ${old}`).length, 0, "settling history creates no event or heat");
+  assert.deepEqual(await overrides(), beforeOverrides);
 });
 
 test("only skipped articles without a current-revision analysis resume", async () => {

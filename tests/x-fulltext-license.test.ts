@@ -49,9 +49,9 @@ async function fixture(options: {
   const quote = `${Date.now()}${n}1`;
   quotes.push(quote);
   const main = `F01-MAIN-${key}`;
-  const zh = options.translation === "same" ? main : `F01-ZH-${key}`;
+  const zh = options.translation === "same" ? main : `完整中文译文内容-${key}`;
   const quoted = `F01-QUOTED-${key}`;
-  const quotedZh = options.translation === "same" ? quoted : `F01-QUOTED-ZH-${key}`;
+  const quotedZh = options.translation === "same" ? quoted : `引用内容的完整中文译文-${key}`;
   const media = `F01-MEDIA-${key}`;
   const summary = options.summary === false ? null : `摘要-${key}`;
   const kind = options.kind ?? "x_search";

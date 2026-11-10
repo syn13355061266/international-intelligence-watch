@@ -8,9 +8,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequestListener } from "@react-router/node";
 import { isApiOwned, resolveRedirect } from "@aihot/contracts/http-policy";
+import { isLoopbackHost, localPreviewEnabled } from "@aihot/contracts/local-preview";
 
 const PORT = Number(process.env.WEB_PORT || process.env.PORT || 3000);
 const HOST = process.env.WEB_HOST || "127.0.0.1";
+const LOCAL_PREVIEW = localPreviewEnabled(process.env);
 const API = new URL(process.env.API_BASE_URL || "http://127.0.0.1:3001");
 /**
  * Whether a reverse proxy in front (Caddy, nginx) records the visitor in X-Forwarded-For. Without one
@@ -119,6 +121,10 @@ function pageCache(req: import("node:http").IncomingMessage, res: import("node:h
 }
 
 async function handle(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) {
+  if (LOCAL_PREVIEW && !isLoopbackHost(req.headers.host ?? "")) {
+    res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    return res.end("本机个人试阅模式仅允许通过 localhost 或 127.0.0.1 访问。");
+  }
   const raw = req.url ?? "/";
   const qi = raw.indexOf("?");
   const pathname = qi >= 0 ? raw.slice(0, qi) : raw;

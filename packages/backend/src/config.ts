@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseEnv } from "node:util";
 import { SITE } from "@aihot/industry/site";
+import { localPreviewEnabled } from "@aihot/contracts/local-preview";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
@@ -58,6 +59,8 @@ export const config = {
   // Optional local-only display of short RSS excerpts when a source does not grant full text.
   // Full article bodies and all X post text remain governed by the publication licence flags.
   publicSourceExcerpts: bool("PUBLIC_SOURCE_EXCERPTS", false),
+  /** Personal loopback reading only; never changes publication or redistribution permissions. */
+  localFulltextPreview: localPreviewEnabled(env),
   devAdmin: env.DEV_AUTH_ROLE === "admin" ? { displayName: env.DEV_AUTH_DISPLAY_NAME || "Dev Admin" } : null,
   /** The admin password (at least 8 characters). Feishu sign-in below is optional. */
   adminPassword: env.ADMIN_PASSWORD || null,

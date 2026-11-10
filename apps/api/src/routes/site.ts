@@ -1,6 +1,8 @@
 // First-party site API (/api/site/*). Not public, not versioned, never called /api/v2.
 // Reads through the same public read layer as v1; no cookies are read or set.
 import { FEATURES } from "@aihot/industry/features";
+import { isLoopbackHost } from "@aihot/contracts/local-preview";
+import { config } from "@aihot/backend/config";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import { InvalidCursorError } from "@aihot/backend/lib/cursor";
@@ -114,17 +116,21 @@ export function registerSite(app: FastifyInstance) {
   app.get("/api/site/items/:id", siteHandler(async (req, reply) => {
     const id = (req.params as { id: string }).id;
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found" });
-    const result = await loadItemDetail(id);
+    const localPreview = config.localFulltextPreview && isLoopbackHost(req.headers.host ?? "");
+    const result = await loadItemDetail(id, new Date(), { localPreview });
     if (result.kind === "not_found") return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found", cacheControl: "public, max-age=60" });
-    return sendJsonWithEtag(req, reply, siteItemDetail(result.detail), { etagPrefix: "item", cacheControl: "public, max-age=60, s-maxage=60" });
+    if (localPreview) reply.header("X-Robots-Tag", "noindex, nofollow");
+    return sendJsonWithEtag(req, reply, siteItemDetail(result.detail), { etagPrefix: "item", cacheControl: localPreview ? "private, no-store" : "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/items/:id/original", siteHandler(async (req, reply) => {
     const id = (req.params as { id: string }).id;
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found" });
-    const result = await loadItemDetail(id);
+    const localPreview = config.localFulltextPreview && isLoopbackHost(req.headers.host ?? "");
+    const result = await loadItemDetail(id, new Date(), { localPreview });
     if (result.kind === "not_found") return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found", cacheControl: "public, max-age=60" });
-    return sendJsonWithEtag(req, reply, siteItemDetail(result.detail, true), { etagPrefix: "item-original", cacheControl: "public, max-age=60, s-maxage=60" });
+    if (localPreview) reply.header("X-Robots-Tag", "noindex, nofollow");
+    return sendJsonWithEtag(req, reply, siteItemDetail(result.detail, true), { etagPrefix: "item-original", cacheControl: localPreview ? "private, no-store" : "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/stories/:publicId/followups", siteHandler(async (req, reply) => {
@@ -249,12 +255,13 @@ export function registerSite(app: FastifyInstance) {
   app.get("/items/:id/markdown", siteHandler(async (req, reply) => {
     const id = (req.params as { id: string }).id;
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return reply.code(404).type("text/plain; charset=utf-8").send("Not found");
-    const md = await exportMarkdown(id);
+    const localPreview = config.localFulltextPreview && isLoopbackHost(req.headers.host ?? "");
+    const md = await exportMarkdown(id, { localPreview });
     if (!md) return reply.code(404).header("Cache-Control", "public, max-age=60").type("text/plain; charset=utf-8").send("Not found");
     return reply
       .header("Content-Type", "text/markdown; charset=utf-8")
       .header("Content-Disposition", `attachment; filename="${md.filename}"`)
-      .header("Cache-Control", "public, max-age=300, s-maxage=300")
+      .header("Cache-Control", localPreview ? "private, no-store" : "public, max-age=300, s-maxage=300")
       .header("X-Robots-Tag", "noindex")
       .send(md.body);
   }));

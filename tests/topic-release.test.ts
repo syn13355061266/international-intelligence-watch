@@ -97,7 +97,7 @@ test("主题的真实发布、统计和缓存共享时间门槛", async (t) => {
 
   await t.test("分类、重复标签、主体标签和非法页码保留原语义", async () => {
     const directory = beforeDirectory.json();
-    assert.equal(topic(directory, "excluded").total, 1);
+    assert.equal(topic(directory, "excluded").total, 2, "技术主题同时收录合格的非精选动态");
     assert.equal(topic(directory, "entity").total, 1);
     for (const page of [0, -1, 1.5, NaN]) assert.equal(await loadTopicPage(slug("page"), page, new Date(RELEASE - 1)), null);
     const empty = await loadTopicPage(slug("empty"), 1, new Date(RELEASE - 1));

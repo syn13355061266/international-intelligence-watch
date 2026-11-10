@@ -139,6 +139,8 @@ export interface OutlineEntry {
 }
 
 export interface ItemDetail extends ItemSummary {
+  /** This response is a private personal reading view, not a redistribution permission. */
+  localPreview?: boolean;
   /** Reading availability; never implies that opening a page starts a model call. */
   bodyNotice?: "source-link" | "unavailable" | "translation-pending" | null;
   readingMode: "full" | "summary-only";
@@ -209,7 +211,7 @@ export interface HotParticipant {
 
 
 export interface HotEntryView {
-  importance?: { score:number; base:number; severity:string; severityScore:number; sourceTierScore:number; corroborationScore:number; recencyScore:number; independentPublishers:number; entitySources:number; diplomacyBonus:number; entityBonus:number; coverage:string };
+  importance?: { score:number; base:number; severity:string; severityScore:number; sourceTierScore:number; corroborationScore:number; recencyScore:number; independentPublishers:number; entitySources:number; diplomacyBonus:number; entityBonus:number; coverage:string; originalScore?:number; chinaRelevance?:number; chinaCoverage?:"assessed"|"unassessed"; globalProtected?:boolean };
   rank: number;
   story: StoryRef;
   heat: number;

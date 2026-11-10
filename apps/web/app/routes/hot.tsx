@@ -137,7 +137,7 @@ function Lead({ e }: { e: HotEntryView }) {
           <div className="flex items-center gap-3">
             <Faces participants={e.participants} total={e.participantCount} size={24} />
             <Voices e={e} />
-        {e.importance && <span className="text-xs text-ink-4" title={`基础 ${e.importance.base}；严重程度 ${e.importance.severityScore}；来源 ${e.importance.sourceTierScore}；印证 ${e.importance.corroborationScore}；时效 ${e.importance.recencyScore}；额外 ${e.importance.diplomacyBonus + e.importance.entityBonus}`}>重要性 {e.importance.score} · 讨论热度 {Math.round(e.heat)} · 独立来源 {e.importance.independentPublishers}{e.importance.coverage === "unclassified" ? " · 待分类" : ""}</span>}
+        {e.importance && <span className="text-xs text-ink-4" title={`基础 ${e.importance.base}；严重程度 ${e.importance.severityScore}；来源 ${e.importance.sourceTierScore}；印证 ${e.importance.corroborationScore}；时效 ${e.importance.recencyScore}；额外 ${e.importance.diplomacyBonus + e.importance.entityBonus}；涉我性 ${e.importance.chinaCoverage === "assessed" ? e.importance.chinaRelevance : "待评估"}${e.importance.globalProtected ? "；全球大事保留原分" : ""}`}>重要性 {e.importance.score} · 讨论热度 {Math.round(e.heat)} · 独立来源 {e.importance.independentPublishers}{e.importance.chinaCoverage === "assessed" ? ` · 涉我性 ${Math.round(e.importance.chinaRelevance ?? 0)}` : " · 涉我性待评估"}{e.importance.coverage === "unclassified" ? " · 待分类" : ""}</span>}
           </div>
         </div>
         <div className="flex w-full shrink-0 items-end justify-between gap-5 sm:ml-auto sm:w-auto sm:justify-end">

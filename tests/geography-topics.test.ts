@@ -47,7 +47,7 @@ test("country, direction and meeting labels survive the copy's shorter tags", ()
   assert.equal(new Set(topics.map((t: any) => t.slug)).size, topics.length);
   assert.equal(topics.filter((t: any) => t.group === "company").length, 9);
   assert.equal(topics.filter((t: any) => t.group === "field").length, 10);
-  assert.equal(topics.filter((t: any) => t.group === "genre").length, 13);
+  assert.equal(topics.filter((t: any) => t.group === "genre").length, 4);
   assert.ok(topics.some((t: any) => t.tags.includes("country:TW")));
   assert.ok(geographyTags(["TW"]).includes("country:TW"));
   assert.ok(geographyTags(["IR"]).includes("region:MDE"));

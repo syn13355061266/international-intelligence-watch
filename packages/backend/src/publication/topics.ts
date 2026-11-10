@@ -68,9 +68,9 @@ export function topicMatchTags(t: Pick<TopicRow, "entity_id" | "tags">): string[
   return t.entity_id ? [`entity:${t.entity_id}`] : t.tags;
 }
 
-/** Geographic and diplomacy topics show all released, eligible public updates. */
+/** Subject directories show released eligible updates, not only the much smaller selected set. */
 export function topicUsesAllUpdates(t: Pick<TopicRow, "grp" | "tags">): boolean {
-  return t.grp === "genre" || t.tags.some((tag) => tag.startsWith("country:") || tag.startsWith("region:"));
+  return t.grp === "field" || t.grp === "genre" || t.tags.some((tag) => tag.startsWith("country:") || tag.startsWith("region:"));
 }
 
 export async function loadTopicTags(slug: string): Promise<string[] | null> {

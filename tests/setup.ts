@@ -68,6 +68,14 @@ export function gate<T = void>() {
 /** A short unique tag for the rows a test creates. */
 export const tag = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
+/** Synthetic assessments keep pipeline tests' prescribed scores; policy tests exercise real tradeoffs. */
+export function selectionAssessment(score: number | undefined, input: string) {
+  if (score === undefined) return {};
+  const axis = score / 10;
+  return { dimensions: { sig: axis, nov: axis, cred: axis, reson: axis, act: axis },
+    chinaRelevance: score, chinaEvidence: input.split('【完整正文】\n').at(-1)!.slice(0, 120), globalMajor: false };
+}
+
 /** Windows terminates a process on SIGTERM; IPC exercises the same graceful handler there. */
 export function signalTestShutdown(child: ChildProcess): void {
   if (process.platform === "win32") child.send({ testSignal: "SIGTERM" });

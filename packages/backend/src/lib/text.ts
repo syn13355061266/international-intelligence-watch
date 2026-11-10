@@ -2,6 +2,14 @@ export function collapseWhitespace(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+/** Shared with upstream: Japanese/Korean Han characters do not make a body Chinese. */
+export function isChineseText(text: string, language?: string | null): boolean {
+  const declared = language?.toLowerCase().split(/[-_]/)[0];
+  if (declared === "zh") return true;
+  if (declared && !["und", "unknown", "other", "zxx"].includes(declared)) return false;
+  return cjkRatio(text) >= 0.3 && !/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
+}
+
 export function truncate(s: string, max: number, ellipsis = "…"): string {
   const chars = [...s];
   if (chars.length <= max) return s;

@@ -3,6 +3,7 @@
 // Rebuilding only re-reads stored results; it never calls a model.
 import { invalidateStoryInputs } from "../events/derived-content.ts";
 import { SITE } from "@aihot/industry/site";
+import { fourForeignTags } from "@aihot/industry/four-foreign";
 import { toPublicApiCategory } from "@aihot/contracts/taxonomy";
 import { config } from "../config.ts";
 import { one, sql, type Tx } from "../db.ts";
@@ -179,6 +180,12 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const summary = pickString(f.summary, analysis?.summary_zh ?? null);
   const category = pickString(f.category, analysis?.category ?? null);
   const tags = Array.isArray(f.tags) ? (f.tags as string[]) : [...new Set([...(analysis?.tags ?? []), ...(analysis?.subjects ?? []).map((s) => `entity:${s}`)])];
+  // Supplement legacy model labels from explicit public activity descriptions, respecting manual tags.
+  if (!Array.isArray(f.tags)) {
+    for (const tag of fourForeignTags([article.title, title, summary, article.body_text?.slice(0, 10_000)].filter(Boolean).join("\n"))) {
+      if (!tags.includes(tag)) tags.push(tag);
+    }
+  }
   const score = typeof f.score === "number" ? f.score : analysis?.score ?? null;
   const relevance = typeof f.relevance === "string" ? (f.relevance as string) : analysis?.relevance ?? null;
   const judgedSelected = typeof f.selected === "boolean" ? (f.selected as boolean) : analysis?.selected ?? null;
