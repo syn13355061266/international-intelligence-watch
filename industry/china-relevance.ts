@@ -24,3 +24,10 @@ export function scoreAttention(input: AttentionAssessment): AttentionBreakdown {
   return { ...input, chinaRelevance, base, weighted, globalProtected, qualityCap,
     score: Math.min(qualityCap, globalProtected ? Math.max(base, weighted) : weighted) };
 }
+
+/** A weak report cannot regain influence through the event-level China component. */
+export function eventChinaRelevance(assessments: AttentionBreakdown[] | null): number | null {
+  if (!Array.isArray(assessments) || !assessments.length) return null;
+  if (assessments.some(a => !Number.isFinite(a.chinaRelevance) || !Number.isFinite(a.qualityCap))) return null;
+  return assessments.reduce((sum, a) => sum + (a.qualityCap >= 60 ? Math.max(0, Math.min(100, a.chinaRelevance)) : 0), 0) / assessments.length;
+}

@@ -1,7 +1,7 @@
 import { stub, tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { scoreAttention, type AttentionAssessment } from '@aihot/industry/china-relevance';
+import { scoreAttention, eventChinaRelevance, type AttentionAssessment } from '@aihot/industry/china-relevance';
 import { computeImportance, type ImportanceEvidence } from '@aihot/industry/intelligence';
 import { ScoreSchema, runSelectionScores, loadAnalyzeInput } from '@aihot/backend/editorial/analyze';
 import { upsertMaterial } from '@aihot/backend/content/materials';
@@ -26,6 +26,9 @@ test('China keywords and high China scores cannot rescue promotions, old news or
     assert.ok(scoreAttention(assessment({dimensions,chinaRelevance:100,chinaEvidence:'China',globalMajor:true})).score<=30);
   }
   assert.equal(ScoreSchema.safeParse({attentionScore:99}).success,false,'new responses must provide the actual indicators');
+  const weak=scoreAttention(assessment({dimensions:{sig:8,nov:8,cred:2,reson:8,act:8},chinaRelevance:100,chinaEvidence:'China'}));
+  assert.equal(eventChinaRelevance([weak,weak]),0,'weak evidence cannot regain a China bonus in event ranking');
+  assert.equal(eventChinaRelevance(null),null,'legacy relevance remains unknown');
 });
 test('event ranking includes China relevance, protects established global crises, and leaves unknown history unassessed',()=>{
   const at=new Date('2026-11-10T12:00:00Z');

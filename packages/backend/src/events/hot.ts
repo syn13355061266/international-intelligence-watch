@@ -2,6 +2,7 @@
 // Each participant counts once per window (repeat collection does not add heat), decays with a
 // 24-hour half-life, and the source time (not collection time) places evidence in the window.
 import { computeImportance, IMPORTANCE_RULE_VERSION, type ImportanceBreakdown, type IntelligenceLabels } from "@aihot/industry/intelligence";
+import { eventChinaRelevance, type AttentionBreakdown } from "@aihot/industry/china-relevance";
 import { sql, type Db } from "../db.ts";
 import { evidenceCondition, listedCondition } from "../publication/scope.ts";
 
@@ -179,21 +180,20 @@ export async function computeHotRanking(at = new Date()): Promise<{ id: number; 
 
   const entries: HotEntry[] = [];
   for (const r of rows) {
-    const reports = await sql<{ id: string; url: string; title: string; source_name: string; first_party: boolean; selected: boolean; score: number | null; at: Date; published_at: Date | null; publisher_key: string; importance_tier: number; intelligence: IntelligenceLabels | null; china_relevance: number | null }[]>`
+    const reports = await sql<{ id: string; url: string; title: string; source_name: string; first_party: boolean; selected: boolean; score: number | null; at: Date; published_at: Date | null; publisher_key: string; importance_tier: number; intelligence: IntelligenceLabels | null; assessments: AttentionBreakdown[] | null }[]>`
       SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.url, p.title, s.name AS source_name, p.first_party, p.selected, p.score,
              coalesce(p.published_at, p.discovered_at) AS at, p.published_at,
              coalesce(s.signal_group_id, s.owner_entity_id, s.id) AS publisher_key,
              coalesce((s.config->'_intelligence'->>'sourceTier')::int, CASE WHEN s.tier='T1' THEN 1 WHEN s.tier='T1_5' THEN 2 ELSE 4 END) AS importance_tier,
              an.output->'intelligence' AS intelligence,
-             (SELECT avg((assessment->>'chinaRelevance')::numeric)
-              FROM jsonb_array_elements(coalesce(an.output->'scoring'->'assessments', '[]'::jsonb)) assessment) AS china_relevance
+             an.output->'scoring'->'assessments' AS assessments
       FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
       JOIN sources s ON s.id = p.source_id
       LEFT JOIN analyses an ON an.id = p.analysis_id
       WHERE f.story_id = ${r.story_id} AND ${evidenceCondition()} AND ${listedCondition(at)} AND s.participation_mode = 'editorial'
       ORDER BY p.article_id`;
     if (reports.length === 0) continue;
-    const importance = computeImportance(reports.map(p => ({ publisherKey:p.publisher_key, sourceTier:Number(p.importance_tier), firstParty:p.first_party, publishedAt:p.published_at, labels:p.intelligence, chinaRelevance:p.china_relevance })), at);
+    const importance = computeImportance(reports.map(p => ({ publisherKey:p.publisher_key, sourceTier:Number(p.importance_tier), firstParty:p.first_party, publishedAt:p.published_at, labels:p.intelligence, chinaRelevance:eventChinaRelevance(p.assessments) })), at);
     const rep = [...reports].sort((x, y) => Number(y.first_party) - Number(x.first_party) || Number(y.selected) - Number(x.selected) || (Number(y.score ?? 0) - Number(x.score ?? 0)))[0]!;
     const participants = await sql<{ name: string; kind: "editorial" | "signal"; tier: string; at: Date }[]>`
       SELECT DISTINCT ON (cs.participant_key) s.name, cs.kind, s.tier, cs.observed_at AS at

@@ -1,6 +1,6 @@
 // Importance is deterministic. The model supplies bounded event labels, never source counts or dates.
 import { CHINA_RELEVANCE_RULE_VERSION } from "./china-relevance.ts";
-export const IMPORTANCE_RULE_VERSION = `intelligence-v2-${CHINA_RELEVANCE_RULE_VERSION}`;
+export const IMPORTANCE_RULE_VERSION = `intelligence-v3-quality-${CHINA_RELEVANCE_RULE_VERSION}`;
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
 export type Severity = typeof SEVERITIES[number];
 export interface IntelligenceLabels {
